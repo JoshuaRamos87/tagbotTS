@@ -41,6 +41,10 @@ build/Release
 node_modules/
 jspm_packages/
 
+# Ignores compiled TypeScript files
+/*.js
+build/
+
 # TypeScript v1 declaration files
 typings/
 
