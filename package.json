@@ -1,0 +1,36 @@
+{  
+  "name": "dictionary",
+  "version": "1.2.0",
+  "description": "interfacing with dictionaryapi",
+  "main": "tagbot.js",
+  "scripts": {
+    "start": "npm run build",
+    "start-dev": "ts-node-dev --respawn ./build/tagbot.ts",
+    "build": "tsc -p . && node ./build/tagbot.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JoshuaRamos87/dictionary.git"
+  },
+  "keywords": [
+    "dictionary"
+  ],
+  "author": "Joshua Ramos",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/JoshuaRamos87/dictionary/issues"
+  },
+  "homepage": "https://github.com/JoshuaRamos87/dictionary#readme",
+  "dependencies": {
+    "@iamtraction/google-translate": "github:iamtraction/google-translate",
+    "discord.js": "^12.5.3",
+    "dotenv": "^10.0.0",
+    "iqdb-client": "^1.0.5",
+    "typescript": "^4.3.5"
+  },
+  "devDependencies": {
+    "ts-node": "^10.1.0",
+    "ts-node-dev": "^1.1.8"
+  }
+
+}
