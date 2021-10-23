@@ -71,7 +71,7 @@ module.exports = function(msg)
             msg.toString().includes("$ver") || 
             msg.toString().includes("$v"))
     {
-      msg.channel.send("Version: 1.2.0");
+      msg.channel.send("Version: 1.2.5");
     }
     else if(msg.toString().toLowerCase().includes("goodmorning") || 
            (msg.toString().toLowerCase() == "gm") ||
