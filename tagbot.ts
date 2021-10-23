@@ -1,4 +1,5 @@
 require("dotenv").config();
+//TODO: Find a way to move this into the build folder
 const mySecret = process.env.TOKEN
 const Discord = require("discord.js");
 const client = new Discord.Client();

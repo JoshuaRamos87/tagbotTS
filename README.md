@@ -17,6 +17,7 @@ The following are instructions to get the program running
 Latest version of Node.js was used for this, v14.17.0
 Get it [here](https://nodejs.org/en/) <br />
 Requires getting your own discord api key and storing it as an environment variable in a .env file, register [here](https://discord.com/developers/applications)<br/>
+IMPORTANT .env file needs to be with in the build folder, this is not done automatically yet...
 
 ## Installation of dependencies
 
