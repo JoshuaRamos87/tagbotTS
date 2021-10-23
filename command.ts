@@ -41,50 +41,19 @@ module.exports = function(msg)
     }
     else if(msg.toString().includes("$findAnime"))
     {
-      let flags ={};
-      let urlIndex = 0;
-      for(let i = 1; msg.toString().split(" ")[i] !== undefined; ++i)
-      {
-        urlIndex = i;
-        switch(msg.toString().split(" ")[i].toLowerCase())
-        {
-          case "-i":
-          {
-            flags["-i"] = true;
-            console.log("image = " + flags["-i"])
-          }
-          break;
-          case "-v":
-          {
-            flags["-v"] = true;
-            console.log("video = " + flags["-v"])
-          }
-        }
-        if(msg.toString().split(" ")[i].toLowerCase().includes("-l="))
-        {
-          let str = msg.toString().split(" ")[i].toLowerCase().substring(3);
-          flags["-l"] = parseInt(str);
-        }
-      }
+      //ret finds is just an object that holds the results of the getAllFlags
+      //just holds the urlIndex and the flags object
+      let ret = getAllFlags(msg);
 
-      fa.findAnime(msg.toString().split(" ")[urlIndex],flags,msg)
-      flags = {};
+      fa.findAnime(msg.toString().split(" ")[ret.urlIndex],ret.flags,msg)
+      ret.flags = {};
     }
     else if(msg.toString().includes("$findSauce"))
     {
-      let flags ={};
-      let urlIndex = 0;
-      for(let i = 1; msg.toString().split(" ")[i] !== undefined; ++i)
-      {
-        urlIndex = i;
-        if(msg.toString().split(" ")[i].toLowerCase() === "-g")
-          flags["-g"] = true;
-      }
-      let URL = msg.toString().split(" ")[urlIndex]
-      //console.log(URL)
-
-      fs.findSauce(msg,URL,flags);
-      flags = {};
+      let ret = getSauceFlags(msg);
+      let URL = msg.toString().split(" ")[ret.urlIndex];
+      fs.findSauce(msg,URL,ret.flags);
+      ret.flags = {};
 
     }
     else if(msg.toString().includes("$translate"))
@@ -112,4 +81,48 @@ module.exports = function(msg)
     }
   }
   catch(err){}
+
+  function getSauceFlags(msg)
+  {
+    let flags = {};
+    let urlIndex = 0;
+    for(let i = 1; msg.toString().split(" ")[i] !== undefined; ++i)
+    {
+      urlIndex = i;
+      if(msg.toString().split(" ")[i].toLowerCase() === "-g")
+        flags["-g"] = true;
+    }
+    return {urlIndex,flags};
+  }  
+
+  function getAllFlags(msg)
+  {
+    let flags = {};
+    let urlIndex = 0;
+    for(let i = 1; msg.toString().split(" ")[i] !== undefined; ++i)
+    {
+      urlIndex = i;
+      switch(msg.toString().split(" ")[i].toLowerCase())
+      {
+        case "-i":
+        {
+          flags["-i"] = true;
+          console.log("image = " + flags["-i"])
+        }
+        break;
+        case "-v":
+        {
+          flags["-v"] = true;
+          console.log("video = " + flags["-v"])
+        }
+      }
+      if(msg.toString().split(" ")[i].toLowerCase().includes("-l="))
+      {
+        let str = msg.toString().split(" ")[i].toLowerCase().substring(3);
+        flags["-l"] = parseInt(str);
+      }
+    }
+    return {flags,urlIndex};
+  }
 }
+
