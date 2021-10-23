@@ -53,11 +53,13 @@ function displayDef(jsonObject,msg)
     let str = ''
     for(let l = 0; l < Object.keys(jsonObject).length; l++)
         for(let i = 0; i < Object.keys(jsonObject[l]["meanings"]).length; i++)
-        for(let j = 0; j < Object.keys(jsonObject[l]["meanings"][i]["definitions"]).length; j++)
         {
-            str += "- " + jsonObject[l]["meanings"][i]["definitions"][j]["definition"] + '\n'
+            str += "**" + jsonObject[l]["meanings"][i]["partOfSpeech"] + "**" + '\n';
+            for(let j = 0; j < Object.keys(jsonObject[l]["meanings"][i]["definitions"]).length; j++)
+            {
+                str += "-  " + jsonObject[l]["meanings"][i]["definitions"][j]["definition"] + '\n'
+            }
         }
-
     msg.channel.send(str);
 }
 
