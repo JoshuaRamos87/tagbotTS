@@ -98,6 +98,18 @@ module.exports = function(msg)
       //console.log(str)
       translate(msg,lang,text)
     }
+    else if(msg.toString().includes("$version") || 
+            msg.toString().includes("$ver") || 
+            msg.toString().includes("$v"))
+    {
+      msg.channel.send("Version: 1.2.0");
+    }
+    else if(msg.toString().toLowerCase().includes("goodmorning") || 
+           (msg.toString().toLowerCase() == "gm") ||
+           msg.toString().toLowerCase().includes("good morning") )
+    {
+      msg.channel.send("Good Morning!");
+    }
   }
   catch(err){}
 }
