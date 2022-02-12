@@ -2,8 +2,8 @@
 
     "compilerOptions": {
         "target": "ES6",
-        "outDir": "build"
-
+        "outDir": "build",
+        "moduleResolution": "node",
     }
 
 }
