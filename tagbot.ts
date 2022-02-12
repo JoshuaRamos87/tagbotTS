@@ -14,7 +14,7 @@ client.on("ready", () => {
   ${client.user.tag}!`)
 });
 
-client.on("message", msg => { 
+client.on("messageCreate", msg => { 
     if(msg.author.bot) return;
     command(msg);
 });
