@@ -39,7 +39,7 @@ module.exports = function(msg)
        msg.channel.send(`$findSauce (optional flags: -g for gelbooru specific source links from tagbot) URL`);
        msg.channel.send(`$translate [language name/ISO 639-1 code] [text to translate]`);
     }
-    else if(msg.toString().includes("$findAnime"))
+    else if(msg.toString().includes("$FindAnime"))
     {
       //ret finds is just an object that holds the results of the getAllFlags
       //just holds the urlIndex and the flags object
@@ -48,7 +48,7 @@ module.exports = function(msg)
       fa.findAnime(msg.toString().split(" ")[ret.urlIndex],ret.flags,msg)
       ret.flags = {};
     }
-    else if(msg.toString().includes("$findSauce"))
+    else if(msg.toString().includes("$FindSauce"))
     {
       let ret = getSauceFlags(msg);
       let URL = msg.toString().split(" ")[ret.urlIndex];
@@ -76,9 +76,21 @@ module.exports = function(msg)
     else if(msg.toString().toLowerCase().includes("goodmorning") || 
            (msg.toString().toLowerCase() == "gm") ||
            msg.toString().toLowerCase().includes("good morning") )
-    {
-      msg.channel.send("Good Morning!");
-    }
+          {
+            msg.channel.send("Good Morning!");
+          }
+    else if(msg.toString().toLowerCase().includes("goodnight") || 
+           (msg.toString().toLowerCase() == "gn") ||
+           msg.toString().toLowerCase().includes("good night") )
+          {
+            msg.channel.send("Good Night!");
+          }
+    else if(msg.toString().toLowerCase().includes("goodafternoon") ||
+            (msg.toString().toLowerCase() == "ga") ||
+            msg.toString().toLowerCase().includes("good afternoon") )
+          {
+            msg.channel.send("Good Afternoon!");
+          }
   }
   catch(err){}
 
