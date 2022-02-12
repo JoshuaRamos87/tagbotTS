@@ -2,9 +2,10 @@ require("dotenv").config();
 //TODO: Find a way to move this into the build folder
 const mySecret = process.env.TOKEN
 const Discord = require("discord.js");
-const client = new Discord.Client();
-const command = require('./command')
+const client = new Discord.Client({intents: ["GUILDS", "GUILD_MESSAGES"]});
+const command = require('./command');
 
+console.log('hello')
 
 client.login(mySecret);
 
