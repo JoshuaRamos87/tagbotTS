@@ -34,11 +34,12 @@ module.exports = function(msg)
     }
     else if(msg.toString().includes("$help"))
     {
-       msg.channel.send(`$define word`);
-       msg.channel.send(`$synonym word`);
-       msg.channel.send(`$findAnime (optional flags: -i for image, -v for video, -l=number for number of results) URL`);
-       msg.channel.send(`$findSauce (optional flags: -g for gelbooru specific source links from tagbot) URL`);
-       msg.channel.send(`$translate [language name/ISO 639-1 code] [text to translate]`);
+      msg.channel.send(`$define word`);
+      msg.channel.send(`$synonym word`);
+      msg.channel.send(`$findAnime (optional flags: -i for image, -v for video, -l=number for number of results) URL`);
+      msg.channel.send(`$findSauce (optional flags: -g for gelbooru specific source links from tagbot) URL`);
+      msg.channel.send(`$translate [language name/ISO 639-1 code] [text to translate]`);
+      msg.channel.send(`$randomImage`);
     }
     else if(msg.toString().includes("$FindAnime"))
     {
