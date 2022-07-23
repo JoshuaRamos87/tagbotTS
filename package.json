@@ -4,8 +4,10 @@
   "description": "interfacing with dictionaryapi",
   "main": "tagbot.js",
   "scripts": {
-    "start": "npm run build",
-    "build": "tsc && pm2 start ./build/tagbot.js"
+    "start-win": "npm run build-win",
+    "start-linux": "npm run build-linux",
+    "build-win": "tsc && node ./build/tagbot.js",
+    "build-linux": "tsc && pm2 start ./build/tagbot.js"
   },
   "repository": {
     "type": "git",
