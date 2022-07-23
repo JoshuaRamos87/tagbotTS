@@ -2,6 +2,7 @@ const dictionary = require('./actions/dictionary')
 const fa = require('./actions/findAnime')
 const fs = require('./actions/findSauce')
 const translate = require('./actions/translate')
+const randomimage = require('./actions/randomimage')
 
 
 //finds the command the user has entered
@@ -91,8 +92,16 @@ module.exports = function(msg)
           {
             msg.channel.send("Good Afternoon!");
           }
+    else if(msg.toString().toLowerCase().includes("$randomimage")){
+        randomimage.getImage(msg);
+    }
   }
-  catch(err){}
+  catch(err){
+    //send message that the command crashed
+    msg.channel.send("https://c.tenor.com/YM3fW1y6f8MAAAAC/crying-cute.gif");
+    msg.channel.send("I crashed! Owie! Let me know if you see this message! :3");
+    console.log(err);
+  }
 
   function getSauceFlags(msg)
   {
