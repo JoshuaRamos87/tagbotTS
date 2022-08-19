@@ -43,9 +43,9 @@ module.exports = function(msg)
     }
     else if(msg.toString().includes("$FindAnime"))
     {
-      //ret finds is just an object that holds the results of the getAllFlags
+      //ret finds is just an object that holds the results of the getFindAnimeFlags
       //just holds the urlIndex and the flags object
-      let ret = getAllFlags(msg);
+      let ret = getFindAnimeFlags(msg);
 
       fa.findAnime(msg.toString().split(" ")[ret.urlIndex],ret.flags,msg)
       ret.flags = {};
@@ -73,7 +73,7 @@ module.exports = function(msg)
             msg.toString().includes("$ver") || 
             msg.toString().includes("$v"))
     {
-      msg.channel.send("Version: 1.2.5");
+      msg.channel.send("Version: 1.3.5");
     }
     else if(msg.toString().toLowerCase().includes("goodmorning") || 
            (msg.toString().toLowerCase() == "gm") ||
@@ -94,7 +94,10 @@ module.exports = function(msg)
             msg.channel.send("Good Afternoon!");
           }
     else if(msg.toString().toLowerCase().includes("$randomimage")){
-        randomimage.getImage(msg);
+      
+      let flags = getRandomImageFlags(msg);
+
+      randomimage.getImage(msg,flags);
     }
   }
   catch(err){
@@ -103,6 +106,21 @@ module.exports = function(msg)
     msg.channel.send("I crashed! Owie! Let me know if you see this message! :3");
     console.log(err);
   }
+
+  //get the flags for the random image command
+  function getRandomImageFlags(msg){
+      let flags: any = {};
+
+      if(msg.toString().includes("-r") || msg.toString().includes("-refresh")){
+        flags.refresh = true;
+      }
+      else if(msg.toString().includes("-sus") || msg.toString().includes("-s")){
+        flags.sus = true;
+      }
+      
+      return flags;
+    }
+  
 
   function getSauceFlags(msg)
   {
@@ -117,7 +135,7 @@ module.exports = function(msg)
     return {urlIndex,flags};
   }  
 
-  function getAllFlags(msg)
+  function getFindAnimeFlags(msg)
   {
     let flags = {};
     let urlIndex = 0;
