@@ -132,7 +132,7 @@ function createFile(msg, messages){
     //loop through the messages and add them to the new object
     for(let i = 0; i < messages.length; ++i){
         newMessages[i] = {
-            "author": msg.author.username,
+            "author": messages[i].author.username,
             "image": messages[i].attachments.first().url,
             "channelId": msg.channel.id
         }
