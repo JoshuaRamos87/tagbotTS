@@ -23,7 +23,7 @@ module.exports = {
         }
 
         //check if directory exists
-        if(require('fs').existsSync('./data/' + msg.channel.id) && !flags.refresh){
+        if(require('fs').existsSync('./data/' + msg.channel.id + '/images.json') && !flags.refresh){
             //if it does then read the file
             let messages = readFile(msg);
 
