@@ -1,12 +1,29 @@
 module.exports = {
     //finds a random sent message that exists in the channel
-    getImage: function(msg){
+    getImage: function(msg,flags){
 
-        //send the message "finding your message now"
-        msg.channel.send("finding your image now :3");
+
+        //if statement for memes not neccessary at all should be removed in the future lol
+        //searches a json for a specific channel id that is full of sus images
+        if(flags.sus){
+
+            //if directory doesn't exist send message that directory doesn't exist
+            if(!require('fs').existsSync('./data/1010205484554391552/images.json')){
+                msg.channel.send("Nice Try");
+                return;
+            }
+
+            let messages = require('fs').readFileSync('./data/1010205484554391552/images.json').toString();
+            Object.entries(JSON.parse(messages)).forEach( ([key, value]) => {
+                messages[key] = value;
+            } );
+            messages = JSON.parse(messages);
+            sendRandomMessage(msg,messages);
+            return;
+        }
 
         //check if directory exists
-        if(require('fs').existsSync('./data/' + msg.channel.id)){
+        if(require('fs').existsSync('./data/' + msg.channel.id) && !flags.refresh){
             //if it does then read the file
             let messages = readFile(msg);
 
@@ -17,6 +34,8 @@ module.exports = {
             sendRandomMessage(msg,messages);
         }
         else{
+            msg.channel.send("finding your image now, this may take a while :3");
+            msg.channel.send("After this initial load it will be faster every time you use this command in this channel ;3");
             //if it doesn't then create the file
             fetchAllImages(msg);
         }
