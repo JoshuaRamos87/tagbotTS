@@ -93,7 +93,7 @@ module.exports = function(msg)
           {
             msg.channel.send("Good Afternoon!");
           }
-    else if(msg.toString().toLowerCase().includes("$randomimage")){
+    else if(msg.toString().toLowerCase().includes("$randomimage") || msg.toString().toLowerCase().includes("$ri")){
       
       let flags = getRandomImageFlags(msg);
 
