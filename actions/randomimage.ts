@@ -6,7 +6,7 @@ module.exports = {
         msg.channel.send("finding your image now :3");
 
         //check if directory exists
-        if(require('fs').existsSync('data/' + msg.channel.id)){
+        if(require('fs').existsSync('./data/' + msg.channel.id)){
             //if it does then read the file
             let messages = readFile(msg);
 
@@ -124,15 +124,20 @@ function createFile(msg, messages){
     for (var i = 0; i < newMessages.length; ++i)
         rv[i] = newMessages[i];
 
-    require('fs').mkdir(
+    require('fs').mkdirSync(
 
-        'data/' + newMessages[0].channelId,
+        './data/' + newMessages[0].channelId,
 
         { recursive: true },
 
         function (err) {
             if (err) throw err;
             console.log('Directory created successfully!');
+            // require('fs').writeFileSync('data/' + newMessages[0].channelId + '/images.json', JSON.stringify(rv), function (err) {
+            //     console.log('complete');
+            //     //close the file
+            //     fs.closeSync();
+            // });
         }
     );
 
