@@ -3,6 +3,7 @@ const fa = require('./actions/findAnime')
 const fs = require('./actions/findSauce')
 const translate = require('./actions/translate')
 const randomimage = require('./actions/randomimage')
+const randomtweet = require('./actions/randomtweet')
 
 
 //finds the command the user has entered
@@ -39,7 +40,8 @@ module.exports = function(msg)
       msg.channel.send(`$findAnime (optional flags: -i for image, -v for video, -l=number for number of results) URL`);
       msg.channel.send(`$findSauce (optional flags: -g for gelbooru specific source links from tagbot) URL`);
       msg.channel.send(`$translate [language name/ISO 639-1 code] [text to translate]`);
-      msg.channel.send(`$randomImage`);
+      msg.channel.send(`$randomImage : $ri`);
+      msg.channel.send(`$randomTweet : $rtw`);
     }
     else if(msg.toString().includes("$FindAnime"))
     {
@@ -95,9 +97,16 @@ module.exports = function(msg)
           }
     else if(msg.toString().toLowerCase().includes("$randomimage") || msg.toString().toLowerCase().includes("$ri")){
       
-      let flags = getRandomImageFlags(msg);
+      let flags = getRandomFlags(msg);
 
       randomimage.getImage(msg,flags);
+    }
+    else if(msg.toString().toLowerCase().includes("$randomtweet") || msg.toString().toLowerCase().includes("$rtw")){
+      
+      let flags = getRandomFlags(msg);
+      
+      randomtweet.getTweet(msg,flags);
+      
     }
   }
   catch(err){
@@ -108,7 +117,7 @@ module.exports = function(msg)
   }
 
   //get the flags for the random image command
-  function getRandomImageFlags(msg){
+  function getRandomFlags(msg){
       let flags: any = {};
 
       if(msg.toString().includes("-r") || msg.toString().includes("-refresh")){
