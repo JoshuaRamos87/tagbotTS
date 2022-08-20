@@ -2,6 +2,16 @@ module.exports = {
     //finds a random sent message that exists in the channel
     getImage: function(msg,flags){
 
+        let channelID = msg.channel.id;
+
+        //console.log('before ' + channelID);
+
+        //if the message is in a thread then get the parent message
+        if(msg.channel.isThread()){
+            channelID = msg.channel.parentId;
+            //console.log('after ' + channelID);
+        }
+
 
         //if statement for memes not neccessary at all should be removed in the future lol
         //searches a json for a specific channel id that is full of sus images
@@ -23,9 +33,9 @@ module.exports = {
         }
 
         //check if directory exists
-        if(require('fs').existsSync('./data/' + msg.channel.id + '/images.json') && !flags.refresh){
+        if(require('fs').existsSync('./data/' + channelID + '/images.json') && !flags.refresh){
             //if it does then read the file
-            let messages = readFile(msg);
+            let messages = readFile(msg,channelID);
 
             //console.log("messages read");
             //console.log(messages);
@@ -37,7 +47,7 @@ module.exports = {
             msg.channel.send("finding your image now, this may take a while :3");
             msg.channel.send("After this initial load it will be faster every time you use this command in this channel ;3");
             //if it doesn't then create the file
-            fetchAllImages(msg);
+            fetchAllImages(msg,channelID);
         }
 
 
@@ -49,17 +59,15 @@ module.exports = {
     
 }
 
-async function fetchAllImages(msg) {
+async function fetchAllImages(msg,channelID) {
 
     try{
-        
-        //get the channel id
-        let channelID = msg.channel.id;
 
         //get client from the message
         let client = msg.client;
 
         const channel = client.channels.cache.get(channelID);
+        //console.log('in fetch '+channel);
         let messages = [];
     
         // Create message pointer
@@ -89,10 +97,10 @@ async function fetchAllImages(msg) {
         //console.log(messages);   
 
         //create the file if it doesn't exist
-        createFile(msg,messages);
+        createFile(msg,messages,channelID);
 
         //read the file
-        messages = readFile(msg);
+        messages = readFile(msg,channelID);
 
         //send the message
         sendRandomMessage(msg,messages);
@@ -121,7 +129,9 @@ function sendRandomMessage(msg,messages){
     msg.channel.send(messages[randomNumber].author + ": " + messages[randomNumber].image);
 }
 
-function createFile(msg, messages){
+function createFile(msg, messages, channelID){
+
+    console.log("creating file" + messages);
 
     //create a new array size of messages array
     let newMessages = new Array(messages.length);
@@ -134,7 +144,7 @@ function createFile(msg, messages){
         newMessages[i] = {
             "author": messages[i].author.username,
             "image": messages[i].attachments.first().url,
-            "channelId": msg.channel.id
+            "channelId": channelID
         }
     }
 
@@ -145,7 +155,7 @@ function createFile(msg, messages){
 
     require('fs').mkdirSync(
 
-        './data/' + newMessages[0].channelId,
+        './data/' + channelID,
 
         { recursive: true },
 
@@ -160,13 +170,13 @@ function createFile(msg, messages){
         }
     );
 
-    require('fs').writeFileSync('data/' + newMessages[0].channelId + '/images.json', JSON.stringify(rv), 'utf8');
+    require('fs').writeFileSync('data/' + channelID + '/images.json', JSON.stringify(rv), 'utf8');
     
 }
 
-function readFile(msg){
+function readFile(msg,channelID){
 
-    let messages = require('fs').readFileSync('data/' + msg.channel.id + '/images.json', function (err) {
+    let messages = require('fs').readFileSync('data/' + channelID + '/images.json', function (err) {
         console.log('complete');
     }).toString();
 
