@@ -53,8 +53,8 @@ async function fetchAllTweets(msg) {
             .then(messagePage => {
 
             messagePage.forEach(msg => {
-                    //if the message includes twitter 
-                    if(msg.content.includes("twitter.com")){
+                    //if the message includes twitter and not a bot
+                    if(msg.content.includes("twitter.com") && !msg.author.bot){
                         //add the message to the array
                         messages.push(msg);
                     }
