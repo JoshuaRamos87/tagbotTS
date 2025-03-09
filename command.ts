@@ -108,6 +108,45 @@ module.exports = function(msg)
       randomtweet.getTweet(msg,flags);
       
     }
+    else if (msg.toString().toLowerCase().includes("$dolphin") || msg.toString().toLowerCase().includes("$d")) {
+      const messageContent = msg.content.trim();
+      let userPrompt = "";
+
+      // Find the first quote and last quote
+      const firstQuoteIndex = messageContent.indexOf('"');
+      const lastQuoteIndex = messageContent.lastIndexOf('"');
+
+      // Ensure quotes exist and are properly formatted
+      if (firstQuoteIndex !== -1 && lastQuoteIndex > firstQuoteIndex) {
+          userPrompt = messageContent.substring(firstQuoteIndex + 1, lastQuoteIndex);
+      }
+
+      console.log(`User prompt: ${userPrompt}`);
+
+      // Send the prompt to Ollama
+      fetch('http://localhost:11434/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              model: 'dolphin-mixtral:8x7b',
+              prompt: String(userPrompt),
+              stream: false
+          })
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.response) {
+              msg.channel.send(data.response); // Send Ollama's response back to Discord
+          } else {
+              msg.channel.send("Error: No response from Ollama.");
+          }
+      })
+      .catch(error => {
+          console.error("Error fetching from Ollama:", error);
+          msg.channel.send("Error communicating with Ollama.");
+      });
+    }
+  
   }
   catch(err){
     //send message that the command crashed
