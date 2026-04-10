@@ -1,10 +1,21 @@
-module.exports = function (msg,lang,text)
+
+async function sendResponse(context, content) {
+    if (context.reply) {
+        if (context.deferred || context.replied) {
+            return context.followUp(content);
+        }
+        return context.reply(content);
+    }
+    return context.channel.send(content);
+}
+
+module.exports = function (context, lang, text)
 {
     const translate = require('@iamtraction/google-translate');
 
     translate(text, { to: lang }).then(res => {
-    msg.channel.send(res.text);
+        sendResponse(context, res.text);
     }).catch(err => {
-    msg.channel.send("translation error occured, double check the target language parameter :3");
+        sendResponse(context, "translation error occured, double check the target language parameter :3");
     });
 }

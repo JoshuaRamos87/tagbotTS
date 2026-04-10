@@ -1,43 +1,42 @@
 module.exports = {
     //finds a random sent message that exists in the channel
-    getTweet: function(msg,flags){
+    getTweet: function(context,flags){
 
         //check if directory exists
-        if(require('fs').existsSync('./data/' + msg.channel.id + '/tweets.json') && !flags.refresh){
+        if(require('fs').existsSync('./data/' + context.channel.id + '/tweets.json') && !flags.refresh){
             //if it does then read the file
-            let messages = readFileTweet(msg);
-
-            //console.log("messages read");
-            //console.log(messages);
+            let messages = readFileTweet(context);
 
             //send the message
-            sendRandomTweet(msg,messages);
+            sendRandomTweet(context,messages);
         }
         else{
-            msg.channel.send("finding your tweet now, this may take a while :3");
-            msg.channel.send("After this initial load it will be faster every time you use this command in this channel ;3");
+            sendResponse(context, "finding your tweet now, this may take a while :3\nAfter this initial load it will be faster every time you use this command in this channel ;3");
             //if it doesn't then create the file
-            fetchAllTweets(msg);
+            fetchAllTweets(context);
         }
-
-
-
-        
-        
     }
-
-    
 }
 
-async function fetchAllTweets(msg) {
+async function sendResponse(context, content) {
+    if (context.reply) {
+        if (context.deferred || context.replied) {
+            return context.followUp(content);
+        }
+        return context.reply(content);
+    }
+    return context.channel.send(content);
+}
+
+async function fetchAllTweets(context) {
 
     try{
         
         //get the channel id
-        let channelID = msg.channel.id;
+        let channelID = context.channel.id;
 
         //get client from the message
-        let client = msg.client;
+        let client = context.client;
 
         const channel = client.channels.cache.get(channelID);
         let messages = [];
@@ -67,56 +66,45 @@ async function fetchAllTweets(msg) {
             );
         }
 
-        //console.log("messages fetched");
-        //console.log(messages);   
-
         //create the file if it doesn't exist
-        createFileTweet(msg,messages);
+        createFileTweet(context,messages);
 
         //read the file
-        messages = readFileTweet(msg);
+        messages = readFileTweet(context);
 
         //send the message
-        sendRandomTweet(msg,messages);
+        sendRandomTweet(context,messages);
     }
     catch(err){
       //send message that the command crashed
-      msg.channel.send("https://c.tenor.com/YM3fW1y6f8MAAAAC/crying-cute.gif");
-      msg.channel.send("I crashed! Owie! Let me know if you see this message! :3");
+      sendResponse(context, "https://c.tenor.com/YM3fW1y6f8MAAAAC/crying-cute.gif\nI crashed! Owie! Let me know if you see this message! :3");
       console.log(err);
     }
 }
 
-function sendRandomTweet(msg,messages){
-
-     //console.log("messages read");
-    //console.log(messages);
+function sendRandomTweet(context,messages){
 
     //get number of keys in the messages
     let numKeys = Object.keys(messages).length - 1;
-    //console.log(numKeys);
 
     //get a random number between 0 and the length of the array
     let randomNumber = Math.floor(Math.random() * numKeys).toString();
 
     //send the message with author and image
-    msg.channel.send(messages[randomNumber].author + ": " + messages[randomNumber].tweet);
+    sendResponse(context, messages[randomNumber].author + ": " + messages[randomNumber].tweet);
 }
 
-function createFileTweet(msg, messages){
+function createFileTweet(context, messages){
 
     //create a new array size of messages array
     let newMessages = new Array(messages.length);
 
-    //console.log(messages[0]);
-    //console.log(msg.author.username);
-    
     //loop through the messages and add them to the new object
     for(let i = 0; i < messages.length; ++i){
         newMessages[i] = {
             "author": messages[i].author.username,
             "tweet": messages[i].content,
-            "channelId": msg.channel.id
+            "channelId": context.channel.id
         }
     }
 
@@ -127,28 +115,23 @@ function createFileTweet(msg, messages){
 
     require('fs').mkdirSync(
 
-        './data/' + newMessages[0].channelId,
+        './data/' + context.channel.id,
 
         { recursive: true },
 
         function (err) {
             if (err) throw err;
             console.log('Directory created successfully!');
-            // require('fs').writeFileSync('data/' + newMessages[0].channelId + '/tweets.json', JSON.stringify(rv), function (err) {
-            //     console.log('complete');
-            //     //close the file
-            //     fs.closeSync();
-            // });
         }
     );
 
-    require('fs').writeFileSync('data/' + newMessages[0].channelId + '/tweets.json', JSON.stringify(rv), 'utf8');
+    require('fs').writeFileSync('data/' + context.channel.id + '/tweets.json', JSON.stringify(rv), 'utf8');
     
 }
 
-function readFileTweet(msg){
+function readFileTweet(context){
 
-    let messages = require('fs').readFileSync('data/' + msg.channel.id + '/tweets.json', function (err) {
+    let messages = require('fs').readFileSync('data/' + context.channel.id + '/tweets.json', function (err) {
         console.log('complete');
     }).toString();
 

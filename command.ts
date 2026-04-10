@@ -4,6 +4,7 @@ const fs = require('./actions/findSauce')
 const translate = require('./actions/translate')
 const randomimage = require('./actions/randomimage')
 const randomtweet = require('./actions/randomtweet')
+const dolphin = require('./actions/dolphin')
 
 
 //finds the command the user has entered
@@ -42,6 +43,7 @@ module.exports = function(msg)
       msg.channel.send(`$translate [language name/ISO 639-1 code] [text to translate]`);
       msg.channel.send(`$randomImage : $ri`);
       msg.channel.send(`$randomTweet : $rtw`);
+      msg.channel.send(`$dolphin "prompt" : $d "prompt"`);
     }
     else if(msg.toString().includes("$FindAnime"))
     {
@@ -121,30 +123,7 @@ module.exports = function(msg)
           userPrompt = messageContent.substring(firstQuoteIndex + 1, lastQuoteIndex);
       }
 
-      console.log(`User prompt: ${userPrompt}`);
-
-      // Send the prompt to Ollama
-      fetch('http://localhost:11434/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-              model: 'dolphin-mixtral:8x7b',
-              prompt: String(userPrompt),
-              stream: false
-          })
-      })
-      .then(response => response.json())
-      .then(data => {
-          if (data.response) {
-              msg.channel.send(data.response); // Send Ollama's response back to Discord
-          } else {
-              msg.channel.send("Error: No response from Ollama.");
-          }
-      })
-      .catch(error => {
-          console.error("Error fetching from Ollama:", error);
-          msg.channel.send("Error communicating with Ollama.");
-      });
+      dolphin.askDolphin(msg, userPrompt);
     }
   
   }

@@ -3,12 +3,11 @@ const { searchPic } = require("iqdb-client");
 
 module.exports = {
 
-    findSauce: async function (msg,URL,flags)
+    findSauce: async function (context,URL,flags)
     {
       let result;
-      //URL = 'https://i.pximg.net/img-original/img/2021/06/24/21/37/50/90781507_p0.jpg';
-      msg.channel.send("Loading results...")
-      if(flags["-g"])
+      sendResponse(context, "Loading results...")
+      if(flags["-g"] || flags["gelbooru"])
       {
         result = (await searchPic(URL, { lib: 'gelbooru' }))
       }
@@ -16,24 +15,35 @@ module.exports = {
       {
         result = (await searchPic(URL, { lib: 'www' }))
       }
-      //see ./src/api.test.ts for more examples.
-      //console.log(result.data)
       if(result.ok)
       {
-        displayImageSauce(msg,result.data);
+        displayImageSauce(context,result.data);
       }
       else{
-        msg.channel.send("No good source found :(");
+        sendResponse(context, "No good source found :(");
       }
     }
 }
 
-function displayImageSauce(msg,jsonObject)
+async function sendResponse(context, content) {
+    if (context.reply) {
+        if (context.deferred || context.replied) {
+            return context.followUp(content);
+        }
+        return context.reply(content);
+    }
+    return context.channel.send(content);
+}
+
+function displayImageSauce(context,jsonObject)
 {
+    let url = "";
     if(jsonObject[1]["sourceUrl"].includes("https://"))
-        msg.channel.send(jsonObject[1]["sourceUrl"])
+        url = jsonObject[1]["sourceUrl"]
     else if(jsonObject[1]["sourceUrl"].includes("http://"))
-        msg.channel.send(jsonObject[1]["sourceUrl"])
+        url = jsonObject[1]["sourceUrl"]
     else
-        msg.channel.send("https://" + jsonObject[1]["sourceUrl"].substring(2))
+        url = "https://" + jsonObject[1]["sourceUrl"].substring(2)
+    
+    sendResponse(context, url);
 }

@@ -1,15 +1,12 @@
 module.exports = {
     //finds a random sent message that exists in the channel
-    getImage: function(msg,flags){
+    getImage: function(context,flags){
 
-        let channelID = msg.channel.id;
-
-        //console.log('before ' + channelID);
+        let channelID = context.channel.id;
 
         //if the message is in a thread then get the parent message
-        if(msg.channel.isThread()){
-            channelID = msg.channel.parentId;
-            //console.log('after ' + channelID);
+        if(context.channel.isThread()){
+            channelID = context.channel.parentId;
         }
 
 
@@ -19,7 +16,7 @@ module.exports = {
 
             //if directory doesn't exist send message that directory doesn't exist
             if(!require('fs').existsSync('./data/1010205484554391552/images.json')){
-                msg.channel.send("Nice Try");
+                sendResponse(context, "Nice Try");
                 return;
             }
 
@@ -28,46 +25,44 @@ module.exports = {
                 messages[key] = value;
             } );
             messages = JSON.parse(messages);
-            sendRandomMessage(msg,messages);
+            sendRandomMessage(context,messages);
             return;
         }
 
         //check if directory exists
         if(require('fs').existsSync('./data/' + channelID + '/images.json') && !flags.refresh){
             //if it does then read the file
-            let messages = readFile(msg,channelID);
-
-            //console.log("messages read");
-            //console.log(messages);
+            let messages = readFile(context,channelID);
 
             //send the message
-            sendRandomMessage(msg,messages);
+            sendRandomMessage(context,messages);
         }
         else{
-            msg.channel.send("finding your image now, this may take a while :3");
-            msg.channel.send("After this initial load it will be faster every time you use this command in this channel ;3");
+            sendResponse(context, "finding your image now, this may take a while :3\nAfter this initial load it will be faster every time you use this command in this channel ;3");
             //if it doesn't then create the file
-            fetchAllImages(msg,channelID);
+            fetchAllImages(context,channelID);
         }
-
-
-
-        
-        
     }
-
-    
 }
 
-async function fetchAllImages(msg,channelID) {
+async function sendResponse(context, content) {
+    if (context.reply) {
+        if (context.deferred || context.replied) {
+            return context.followUp(content);
+        }
+        return context.reply(content);
+    }
+    return context.channel.send(content);
+}
+
+async function fetchAllImages(context,channelID) {
 
     try{
 
         //get client from the message
-        let client = msg.client;
+        let client = context.client;
 
         const channel = client.channels.cache.get(channelID);
-        //console.log('in fetch '+channel);
         let messages = [];
     
         // Create message pointer
@@ -93,52 +88,41 @@ async function fetchAllImages(msg,channelID) {
             );
         }
 
-        //console.log("messages fetched");
-        //console.log(messages);   
-
         //create the file if it doesn't exist
-        createFile(msg,messages,channelID);
+        createFile(context,messages,channelID);
 
         //read the file
-        messages = readFile(msg,channelID);
+        messages = readFile(context,channelID);
 
         //send the message
-        sendRandomMessage(msg,messages);
+        sendRandomMessage(context,messages);
     }
     catch(err){
       //send message that the command crashed
-      msg.channel.send("https://c.tenor.com/YM3fW1y6f8MAAAAC/crying-cute.gif");
-      msg.channel.send("I crashed! Owie! Let me know if you see this message! :3");
+      sendResponse(context, "https://c.tenor.com/YM3fW1y6f8MAAAAC/crying-cute.gif\nI crashed! Owie! Let me know if you see this message! :3");
       console.log(err);
     }
 }
 
-function sendRandomMessage(msg,messages){
-
-     //console.log("messages read");
-    //console.log(messages);
+function sendRandomMessage(context,messages){
 
     //get number of keys in the messages
     let numKeys = Object.keys(messages).length - 1;
-    //console.log(numKeys);
 
     //get a random number between 0 and the length of the array
     let randomNumber = Math.floor(Math.random() * numKeys).toString();
 
     //send the message with author and image
-    msg.channel.send(messages[randomNumber].author + ": " + messages[randomNumber].image);
+    sendResponse(context, messages[randomNumber].author + ": " + messages[randomNumber].image);
 }
 
-function createFile(msg, messages, channelID){
+function createFile(context, messages, channelID){
 
     console.log("creating file" + messages);
 
     //create a new array size of messages array
     let newMessages = new Array(messages.length);
 
-    //console.log(messages[0].attachments);
-    //console.log(msg.author.username);
-    
     //loop through the messages and add them to the new object
     for(let i = 0; i < messages.length; ++i){
         newMessages[i] = {
@@ -162,11 +146,6 @@ function createFile(msg, messages, channelID){
         function (err) {
             if (err) throw err;
             console.log('Directory created successfully!');
-            // require('fs').writeFileSync('data/' + newMessages[0].channelId + '/images.json', JSON.stringify(rv), function (err) {
-            //     console.log('complete');
-            //     //close the file
-            //     fs.closeSync();
-            // });
         }
     );
 
@@ -174,7 +153,7 @@ function createFile(msg, messages, channelID){
     
 }
 
-function readFile(msg,channelID){
+function readFile(context,channelID){
 
     let messages = require('fs').readFileSync('data/' + channelID + '/images.json', function (err) {
         console.log('complete');

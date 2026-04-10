@@ -1,9 +1,13 @@
 {
-
     "compilerOptions": {
         "target": "ES6",
+        "module": "Node16",
         "outDir": "build",
-        "moduleResolution": "node",
+        "moduleResolution": "node16",
+        "types": ["node"],
+        "strict": false,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "lib": ["es2017", "dom"]
     }
-
 }

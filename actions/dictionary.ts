@@ -1,20 +1,14 @@
 module.exports = {
 
-    findWord: function(word,msg,wordAction)
+    findWord: function(word, context, wordAction)
     {
-        
       const http = require("https");
       let options = {
           "method": "GET",
           "hostname": "api.dictionaryapi.dev",
           "path": '/api/v2/entries/en_US/',
-          "headers": 
-          {
-              'custom': 'Custom Header Demo works'
-          }
       };
       options["path"] += word
-      let jsonObject;
       let req = http.request(options, function (res) {
       let chunks = [];
       
@@ -23,12 +17,11 @@ module.exports = {
       });
       res.on("end", function () {
               let body = Buffer.concat(chunks);
-              jsonObject = JSON.parse(body.toString())  
+              let jsonObject = JSON.parse(body.toString())  
     
-
             if(jsonObject["title"] === "No Definitions Found")
             {
-              msg.channel.send(jsonObject["title"])
+              sendResponse(context, jsonObject["title"]);
               return
             }
 
@@ -36,19 +29,27 @@ module.exports = {
               {
                 switch(wordAction)
                 {
-                    case "def": displayDef(jsonObject,msg); break;
-                    case "syn": displaySyn(jsonObject,msg); break;
+                    case "def": displayDef(jsonObject, context); break;
+                    case "syn": displaySyn(jsonObject, context); break;
                 }
               }catch(err){}
-              
-              
           });
       });
       req.end();
     }
 }
 
-function displayDef(jsonObject,msg)
+async function sendResponse(context, content) {
+    if (context.reply) {
+        if (context.deferred || context.replied) {
+            return context.followUp(content);
+        }
+        return context.reply(content);
+    }
+    return context.channel.send(content);
+}
+
+function displayDef(jsonObject, context)
 {
     let str = ''
     for(let l = 0; l < Object.keys(jsonObject).length; l++)
@@ -60,14 +61,14 @@ function displayDef(jsonObject,msg)
                 str += "-  " + jsonObject[l]["meanings"][i]["definitions"][j]["definition"] + '\n'
             }
         }
-    msg.channel.send(str);
+    sendResponse(context, str);
 }
 
-function displaySyn(jsonObject,msg)
+function displaySyn(jsonObject, context)
 {
     if(jsonObject["title"] === "No Definitions Found")
     {
-        msg.channel.send(jsonObject["title"])
+        sendResponse(context, jsonObject["title"]);
         return;
     }
 
@@ -83,13 +84,12 @@ function displaySyn(jsonObject,msg)
                 {
                 str += "- " + jsonObject[l]["meanings"][i]["definitions"][j]["synonyms"][n] + '\n'
                 }
-                    
             }
             catch(err){}
         }
     }
     if(str === '')
-    msg.channel.send("no synonym found");
+        sendResponse(context, "no synonym found");
     else
-    msg.channel.send(str);
+        sendResponse(context, str);
 }

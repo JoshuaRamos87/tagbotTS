@@ -1,16 +1,12 @@
 module.exports = {
 
-    findAnime: function(URL,flags,msg)
+    findAnime: function(URL,flags,context)
     {
         const http = require("https");
         let options = {
             "method": "GET",
             "hostname": "api.trace.moe",
             "path": '/search?anilistInfo&url=',
-            "headers": 
-            {
-                'custom': 'Custom Header Demo works'
-            }
         };
         console.log(URL)
         options["path"] += URL
@@ -27,8 +23,7 @@ module.exports = {
                 let jsonObject = JSON.parse(body.toString())  
 
                 try{
-                    //console.log(jsonObject);
-                    displayAnime(jsonObject,msg,flags);
+                    displayAnime(jsonObject,context,flags);
                 } catch(err){}
             });
 
@@ -37,24 +32,34 @@ module.exports = {
     }
 }
 
-function displayAnime(jsonObject,msg,flags)
+async function sendResponse(context, content) {
+    if (context.reply) {
+        if (context.deferred || context.replied) {
+            return context.followUp(content);
+        }
+        return context.reply(content);
+    }
+    return context.channel.send(content);
+}
+
+function displayAnime(jsonObject,context,flags)
 {
-    let length = flags["-l"];
-    if(length === undefined || Number.isNaN(flags["-l"]))
+    let length = flags["-l"] || flags["limit"];
+    if(length === undefined || Number.isNaN(length))
         length = 1;
 
-    msg.channel.send("-----------------------------------------------------------------");
+    sendResponse(context, "-----------------------------------------------------------------");
     for(let l = 0; l < length && l < jsonObject["result"].length; l++)
     {
-        if(flags["-i"])
+        if(flags["-i"] || flags["image"])
         {
-        msg.channel.send(jsonObject["result"][l]["image"]);
+            sendResponse(context, jsonObject["result"][l]["image"]);
         }
-        if(flags["-v"])
+        if(flags["-v"] || flags["video"])
         {
-        msg.channel.send(jsonObject["result"][l]["video"]);
+            sendResponse(context, jsonObject["result"][l]["video"]);
         }
-        msg.channel.send(`title: ${jsonObject["result"][l]["anilist"]["title"]["romaji"]}
+        sendResponse(context, `title: ${jsonObject["result"][l]["anilist"]["title"]["romaji"]}
 similarity: ${jsonObject["result"][l]["similarity"].toFixed(2)}
 episode: ${jsonObject["result"][l]["episode"]}
 -----------------------------------------------------------------`);
