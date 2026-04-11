@@ -3,13 +3,16 @@ import * as randomtweet from '../actions/randomtweet.js';
 
 export const data = new SlashCommandBuilder()
     .setName('randomtweet')
-    .setDescription('Fetches a random tweet from the channel history')
-    .addBooleanOption(option => 
-        option.setName('refresh')
-            .setDescription('Refresh the tweet cache for this channel'));
+    .setDescription('Fetches random tweets from the channel history')
+    .addIntegerOption(option => 
+        option.setName('count')
+            .setDescription('Number of tweets to fetch (1-4)')
+            .setMinValue(1)
+            .setMaxValue(4));
 
 export async function execute(interaction) {
-    const refresh = interaction.options.getBoolean('refresh') || false;
+    const count = interaction.options.getInteger('count') || 1;
+    console.log(`Command: randomtweet | Channel: ${interaction.channelId} | Count: ${count}`);
     await interaction.deferReply();
-    randomtweet.getTweet(interaction, { refresh });
+    randomtweet.getTweet(interaction, count);
 }

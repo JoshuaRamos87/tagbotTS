@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { SnowflakeUtil, EmbedBuilder } from 'discord.js';
+import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import * as db from '../utils/database.js';
 
 const activeSyncs = new Set<string>();
@@ -28,40 +28,124 @@ function migrateJsonToDb(channelID: string) {
     }
 }
 
-export async function getTweet(context, flags) {
+export async function getTweet(context, count = 1) {
     const channelID = context.channel.id;
 
-    if (flags.refresh) {
-        db.clearChannelTweets(channelID);
-    } else if (!db.hasTweets(channelID)) {
+    if (!db.hasTweets(channelID)) {
         migrateJsonToDb(channelID);
     }
 
     if (db.hasTweets(channelID)) {
-        // 1. Deliver result INSTANTLY
-        const tweet = db.getRandomTweet(channelID);
-        if (tweet) {
-            await sendResponse(context, `${tweet.author}: ${tweet.content}`);
+        const tweets = db.getRandomTweets(channelID, count);
+        if (tweets.length > 0) {
+            const refreshedTweets = await Promise.all(tweets.map(t => refreshTweetContent(context, channelID, t)));
+            await deliverTweets(context, channelID, refreshedTweets);
         }
 
-        // 2. Sync in BACKGROUND
         const lastId = db.getLastTweetId(channelID);
         if (lastId) {
-            syncNewTweets(context, channelID, lastId).catch(err => console.error("Tweet sync error:", err));
+            syncNewTweets(context, channelID, lastId).catch(err => console.error("Tweet sync error:", err.message));
         }
     } else {
-        await fetchAllTweets(context);
+        await fetchAllTweets(context, count);
+    }
+}
+
+async function refreshTweetContent(context, channelID, tweet) {
+    if (!tweet.message_id || !tweet.content.includes("cdn.discordapp.com")) return tweet;
+
+    try {
+        if (tweet.content.includes("ex=")) {
+            const urlMatch = tweet.content.match(/https:\/\/cdn\.discordapp\.com\/attachments\/[^\s]+/);
+            if (urlMatch) {
+                const url = new URL(urlMatch[0]);
+                const expiryHex = url.searchParams.get('ex');
+                if (expiryHex) {
+                    const expiryTs = parseInt(expiryHex, 16) * 1000;
+                    if (expiryTs - Date.now() < 3600000) {
+                        const channel = await context.client.channels.fetch(channelID);
+                        const message = await channel.messages.fetch(tweet.message_id);
+                        db.updateTweetContent(tweet.id, message.content);
+                        return { ...tweet, content: message.content };
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error(`Failed to refresh tweet message ${tweet.message_id}:`, err.message);
+    }
+    return tweet;
+}
+
+async function deliverTweets(context, channelID, tweets) {
+    const row = new ActionRowBuilder<ButtonBuilder>();
+
+    if (tweets.length === 1) {
+        const tweet = tweets[0];
+        let response = `**${tweet.author}**: ${tweet.content}`;
+        
+        if (tweet.message_id) {
+            const jumpUrl = `https://discord.com/channels/${context.guildId}/${channelID}/${tweet.message_id}`;
+            const jumpButton = new ButtonBuilder()
+                .setLabel('Jump to Original Post')
+                .setStyle(ButtonStyle.Link)
+                .setURL(jumpUrl);
+            row.addComponents(jumpButton);
+        }
+        
+        const payload: any = { content: response };
+        if (row.components.length > 0) payload.components = [row];
+        
+        await sendResponse(context, payload);
+    } else {
+        const embeds = tweets.map((tweet, index) => {
+            const embed = new EmbedBuilder()
+                .setColor(0x1DA1F2)
+                .setAuthor({ name: `Posted by: ${tweet.author}` })
+                .setDescription(tweet.content);
+            
+            if (tweet.message_id) {
+                const jumpUrl = `https://discord.com/channels/${context.guildId}/${channelID}/${tweet.message_id}`;
+                const jumpButton = new ButtonBuilder()
+                    .setLabel(`Jump to #${index + 1}`)
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(jumpUrl);
+                
+                if (row.components.length < 5) {
+                    row.addComponents(jumpButton);
+                }
+            }
+            
+            return embed;
+        });
+
+        const payload: any = { embeds };
+        if (row.components.length > 0) payload.components = [row];
+
+        await sendResponse(context, payload);
     }
 }
 
 async function sendResponse(context, content) {
-    if (context.reply) {
-        if (context.deferred || context.replied) {
-            return context.followUp(content);
+    const isExpired = context.createdTimestamp && (Date.now() - context.createdTimestamp > 14 * 60 * 1000);
+
+    if (context.reply && !isExpired) {
+        try {
+            if (context.deferred && !context.replied) {
+                return await context.editReply(content);
+            }
+            if (context.replied || context.deferred) {
+                return await context.followUp(content);
+            }
+            return await context.reply(content);
+        } catch (err) {
+            console.error("Interaction response failed, falling back to channel send:", err.message);
         }
-        return context.reply(content);
     }
-    return context.channel.send(content);
+    
+    if (context.channel) {
+        return await context.channel.send(content);
+    }
 }
 
 async function syncNewTweets(context, channelID, lastId) {
@@ -88,35 +172,35 @@ async function syncNewTweets(context, channelID, lastId) {
                     });
                 }
             });
-            currentAfter = messages.lastKey(); // CORRECTED
+            currentAfter = messages.lastKey();
 
             if (newTweets.length >= 100) {
-                db.saveTweets(channelID, newTweets);
-                totalSynced += newTweets.length;
-                console.log(`[SYNC] Tweet batch saved: ${totalSynced} new tweets found so far...`);
+                const inserted = db.saveTweets(channelID, newTweets);
+                totalSynced += inserted;
+                console.log(`[SYNC] Tweet batch processed: ${totalSynced} actual new tweets saved...`);
                 newTweets = [];
             }
         }
 
         if (newTweets.length > 0) {
-            db.saveTweets(channelID, newTweets);
-            totalSynced += newTweets.length;
+            const inserted = db.saveTweets(channelID, newTweets);
+            totalSynced += inserted;
         }
 
         if (totalSynced > 0) {
-            console.log(`[SYNC] Finished tweet sync for ${channelID}: +${totalSynced} new tweets.`);
+            console.log(`[SYNC] Finished tweet sync for ${channelID}: +${totalSynced} actual new tweets.`);
         } else {
-            console.log(`[SYNC] Tweet sync for ${channelID} complete: No new tweets found.`);
+            console.log(`[SYNC] Tweet sync for ${channelID} complete: No new unique tweets found.`);
         }
     } catch (err) {
-        console.error(`[SYNC] Tweet sync error for ${channelID}:`, err);
+        console.error(`[SYNC] Tweet sync error for ${channelID}:`, err.message);
     } finally {
         console.log(`[SYNC] Background process ended for channel ${channelID}.`);
         activeSyncs.delete(channelID);
     }
 }
 
-async function fetchAllTweets(context) {
+async function fetchAllTweets(context, initialCount = 1) {
     try {
         let channelID = context.channel.id;
         let client = context.client;
@@ -130,7 +214,7 @@ async function fetchAllTweets(context) {
         const numWorkers = 12;
         const chunkDuration = Math.floor(duration / numWorkers);
 
-        let totalFound = 0;
+        let totalSaved = 0;
         let activeWorkers = numWorkers;
 
         const initialEmbed = new EmbedBuilder()
@@ -144,10 +228,10 @@ async function fetchAllTweets(context) {
             const updateEmbed = new EmbedBuilder()
                 .setColor(0x1DA1F2)
                 .setTitle("🐦 Super-Tweet-Crawler Scanning...")
-                .setDescription(`Building a tweet index for <#${channelID}>.\n\n**Found:** 🐦 **${totalFound.toLocaleString()}** tweets\n**Active Workers:** ⚙️ ${activeWorkers}/${numWorkers}`);
+                .setDescription(`Building a tweet index for <#${channelID}>.\n\n**New Tweets Saved:** 🐦 **${totalSaved.toLocaleString()}**\n**Active Workers:** ⚙️ ${activeWorkers}/${numWorkers}`);
 
             try {
-                if (message.edit) await message.edit({ embeds: [updateEmbed] });
+                if (message && message.edit) await message.edit({ embeds: [updateEmbed] });
             } catch (e) {}
         }, 3000);
 
@@ -160,7 +244,7 @@ async function fetchAllTweets(context) {
             workerPromises.push((async () => {
                 try {
                     await crawlAndStreamTweets(channel, endId, segmentStart, (count) => {
-                        totalFound += count;
+                        totalSaved += count;
                     });
                 } finally {
                     activeWorkers--;
@@ -171,15 +255,18 @@ async function fetchAllTweets(context) {
         await Promise.all(workerPromises);
         clearInterval(progressInterval);
 
-        const tweet = db.getRandomTweet(channelID);
-        if (tweet) {
+        const tweets = db.getRandomTweets(channelID, initialCount);
+        if (tweets.length > 0) {
             const successEmbed = new EmbedBuilder()
                 .setColor(0x00FF00)
                 .setTitle("✅ Super-Tweet-Crawl Complete")
-                .setDescription(`Finished indexing **${totalFound.toLocaleString()}** tweets in <#${channelID}>!`);
+                .setDescription(`Finished indexing **${totalSaved.toLocaleString()}** unique tweets in <#${channelID}>!`);
             
-            if (message.edit) await message.edit({ embeds: [successEmbed] });
-            await sendResponse(context, `${tweet.author}: ${tweet.content}`);
+            if (message && message.edit) await message.edit({ embeds: [successEmbed] });
+            else await sendResponse(context, { embeds: [successEmbed] });
+
+            const refreshedTweets = await Promise.all(tweets.map(t => refreshTweetContent(context, channelID, t)));
+            await deliverTweets(context, channelID, refreshedTweets);
         } else {
             sendResponse(context, "I couldn't find any tweets in this channel!");
         }
@@ -188,7 +275,7 @@ async function fetchAllTweets(context) {
     }
 }
 
-async function crawlAndStreamTweets(channel, beforeId, untilTimestamp, onBatchFound) {
+async function crawlAndStreamTweets(channel, beforeId, untilTimestamp, onBatchSaved) {
     let currentBefore = beforeId;
     let localBatch = [];
 
@@ -213,8 +300,8 @@ async function crawlAndStreamTweets(channel, beforeId, untilTimestamp, onBatchFo
         }
 
         if (localBatch.length >= 200) {
-            db.saveTweets(channel.id, localBatch);
-            onBatchFound(localBatch.length);
+            const inserted = db.saveTweets(channel.id, localBatch);
+            onBatchSaved(inserted);
             localBatch = [];
         }
 
@@ -223,7 +310,7 @@ async function crawlAndStreamTweets(channel, beforeId, untilTimestamp, onBatchFo
     }
 
     if (localBatch.length > 0) {
-        db.saveTweets(channel.id, localBatch);
-        onBatchFound(localBatch.length);
+        const inserted = db.saveTweets(channel.id, localBatch);
+        onBatchSaved(inserted);
     }
 }
