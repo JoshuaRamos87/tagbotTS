@@ -5,7 +5,7 @@
   "main": "tagbot.js",
   "type": "module",
   "scripts": {
-    "start-win": "npm run build-win",
+    "start-win": "tsc && node ./build/deploy-commands.js && node ./build/tagbot.js",
     "start-linux": "npm run build-linux",
     "build-win": "tsc && node ./build/tagbot.js",
     "deploy": "tsc && node ./build/deploy-commands.js",

@@ -65,12 +65,16 @@ export function saveImages(channelId: string, images: { author: string, url: str
 }
 
 export function getLastImageId(channelId: string): string | undefined {
-    const result = db.prepare('SELECT message_id FROM images WHERE channel_id = ? AND message_id IS NOT NULL ORDER BY message_id DESC LIMIT 1').get(channelId) as { message_id: string };
+    const result = db.prepare('SELECT message_id FROM images WHERE channel_id = ? AND message_id IS NOT NULL ORDER BY LENGTH(message_id) DESC, message_id DESC LIMIT 1').get(channelId) as { message_id: string };
     return result ? result.message_id : undefined;
 }
 
 export function getRandomImage(channelId: string): ImageRecord | undefined {
     return db.prepare('SELECT * FROM images WHERE channel_id = ? ORDER BY RANDOM() LIMIT 1').get(channelId) as ImageRecord | undefined;
+}
+
+export function getRandomImages(channelId: string, count: number): ImageRecord[] {
+    return db.prepare('SELECT * FROM images WHERE channel_id = ? ORDER BY RANDOM() LIMIT ?').all(channelId, count) as ImageRecord[];
 }
 
 export function clearChannelImages(channelId: string) {
@@ -95,7 +99,7 @@ export function saveTweets(channelId: string, tweets: { author: string, content:
 }
 
 export function getLastTweetId(channelId: string): string | undefined {
-    const result = db.prepare('SELECT message_id FROM tweets WHERE channel_id = ? AND message_id IS NOT NULL ORDER BY message_id DESC LIMIT 1').get(channelId) as { message_id: string };
+    const result = db.prepare('SELECT message_id FROM tweets WHERE channel_id = ? AND message_id IS NOT NULL ORDER BY LENGTH(message_id) DESC, message_id DESC LIMIT 1').get(channelId) as { message_id: string };
     return result ? result.message_id : undefined;
 }
 

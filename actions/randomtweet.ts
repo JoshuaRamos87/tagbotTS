@@ -88,7 +88,7 @@ async function syncNewTweets(context, channelID, lastId) {
                     });
                 }
             });
-            currentAfter = messages.firstKey();
+            currentAfter = messages.lastKey(); // CORRECTED
 
             if (newTweets.length >= 100) {
                 db.saveTweets(channelID, newTweets);
@@ -108,7 +108,10 @@ async function syncNewTweets(context, channelID, lastId) {
         } else {
             console.log(`[SYNC] Tweet sync for ${channelID} complete: No new tweets found.`);
         }
+    } catch (err) {
+        console.error(`[SYNC] Tweet sync error for ${channelID}:`, err);
     } finally {
+        console.log(`[SYNC] Background process ended for channel ${channelID}.`);
         activeSyncs.delete(channelID);
     }
 }

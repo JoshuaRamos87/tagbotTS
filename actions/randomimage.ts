@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { SnowflakeUtil, EmbedBuilder } from 'discord.js';
+import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import * as db from '../utils/database.js';
 
 // Track active syncs to avoid overlapping
@@ -29,7 +29,7 @@ function migrateJsonToDb(channelID: string) {
     }
 }
 
-export async function getImage(context) {
+export async function getImage(context, count = 1) {
     let channelID = context.channel.id;
 
     if (context.channel.isThread()) {
@@ -41,20 +41,69 @@ export async function getImage(context) {
     }
 
     if (db.hasImages(channelID)) {
-        // 1. Deliver result INSTANTLY from DB
-        const img = db.getRandomImage(channelID);
-        if (img) {
-            await sendResponse(context, `${img.author}: ${img.url}`);
+        const images = db.getRandomImages(channelID, count);
+        if (images.length > 0) {
+            await deliverImages(context, channelID, images);
         }
 
-        // 2. Sync in the BACKGROUND (Non-blocking)
+        // Sync in the BACKGROUND
         const lastId = db.getLastImageId(channelID);
         if (lastId) {
             syncNewImages(context, channelID, lastId).catch(err => console.error("Background sync error:", err));
         }
     } else {
-        // Initial crawl is still blocking because we have nothing to show yet
-        await fetchAllImages(context, channelID);
+        await fetchAllImages(context, channelID, count);
+    }
+}
+
+async function deliverImages(context, channelID, images) {
+    const row = new ActionRowBuilder<ButtonBuilder>();
+
+    if (images.length === 1) {
+        const img = images[0];
+        let response = `**${img.author}**: ${img.url}`;
+        
+        if (img.message_id) {
+            const jumpUrl = `https://discord.com/channels/${context.guildId}/${channelID}/${img.message_id}`;
+            const jumpButton = new ButtonBuilder()
+                .setLabel('Jump to Original Post')
+                .setStyle(ButtonStyle.Link)
+                .setURL(jumpUrl);
+            row.addComponents(jumpButton);
+        }
+        
+        const payload: any = { content: response };
+        if (row.components.length > 0) payload.components = [row];
+        
+        await sendResponse(context, payload);
+    } else {
+        const sharedUrl = images[0].url;
+        const embeds = images.map((img, index) => {
+            const embed = new EmbedBuilder()
+                .setColor(0x0099FF)
+                .setURL(sharedUrl)
+                .setAuthor({ name: `Posted by: ${img.author}` })
+                .setImage(img.url);
+            
+            if (img.message_id) {
+                const jumpUrl = `https://discord.com/channels/${context.guildId}/${channelID}/${img.message_id}`;
+                const jumpButton = new ButtonBuilder()
+                    .setLabel(`Jump to #${index + 1}`)
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(jumpUrl);
+                
+                if (row.components.length < 5) {
+                    row.addComponents(jumpButton);
+                }
+            }
+            
+            return embed;
+        });
+
+        const payload: any = { embeds };
+        if (row.components.length > 0) payload.components = [row];
+
+        await sendResponse(context, payload);
     }
 }
 
@@ -68,7 +117,6 @@ async function sendResponse(context, content) {
     return context.channel.send(content);
 }
 
-// FAST FORWARD SYNC (Background)
 async function syncNewImages(context, channelID, lastId) {
     if (activeSyncs.has(channelID)) return;
     activeSyncs.add(channelID);
@@ -93,8 +141,8 @@ async function syncNewImages(context, channelID, lastId) {
                     });
                 }
             });
-            currentAfter = messages.firstKey(); // Newest in batch
-            
+            currentAfter = messages.lastKey(); // Newest in batch - CORRECTED
+
             if (newImages.length >= 100) {
                 db.saveImages(channelID, newImages);
                 totalSynced += newImages.length;
@@ -113,12 +161,15 @@ async function syncNewImages(context, channelID, lastId) {
         } else {
             console.log(`[SYNC] Image sync for ${channelID} complete: No new images found.`);
         }
+    } catch (err) {
+        console.error(`[SYNC] Image sync error for ${channelID}:`, err);
     } finally {
+        console.log(`[SYNC] Background process ended for channel ${channelID}.`);
         activeSyncs.delete(channelID);
     }
 }
 
-async function fetchAllImages(context, channelID) {
+async function fetchAllImages(context, channelID, initialCount = 1) {
     try {
         let client = context.client;
         const channel = await client.channels.fetch(channelID);
@@ -171,15 +222,16 @@ async function fetchAllImages(context, channelID) {
         await Promise.all(workerPromises);
         clearInterval(progressInterval);
 
-        const finalImg = db.getRandomImage(channelID);
-        if (finalImg) {
+        const images = db.getRandomImages(channelID, initialCount);
+        if (images.length > 0) {
             const successEmbed = new EmbedBuilder()
                 .setColor(0x00FF00)
                 .setTitle("✅ Super-Crawl Complete")
                 .setDescription(`Finished indexing **${totalFound.toLocaleString()}** images in <#${channelID}>!`);
             
             if (message.edit) await message.edit({ embeds: [successEmbed] });
-            await sendResponse(context, `${finalImg.author}: ${finalImg.url}`);
+            
+            await deliverImages(context, channelID, images);
         } else {
             sendResponse(context, "I couldn't find any images in this channel!");
         }
