@@ -28,8 +28,8 @@ export function findWord(word, context, wordAction)
             {
             switch(wordAction)
             {
-                case "def": displayDef(jsonObject, context); break;
-                case "syn": displaySyn(jsonObject, context); break;
+                case "def": displayDef(word, jsonObject, context); break;
+                case "syn": displaySyn(word, jsonObject, context); break;
             }
             }catch(err){}
         });
@@ -47,9 +47,9 @@ async function sendResponse(context, content) {
     return context.channel.send(content);
 }
 
-function displayDef(jsonObject, context)
+function displayDef(word, jsonObject, context)
 {
-    let str = ''
+    let str = `**Word: ${word.replace(/%20/g, ' ').trim()}**\n\n`
     for(let l = 0; l < Object.keys(jsonObject).length; l++)
         for(let i = 0; i < Object.keys(jsonObject[l]["meanings"]).length; i++)
         {
@@ -62,7 +62,7 @@ function displayDef(jsonObject, context)
     sendResponse(context, str);
 }
 
-function displaySyn(jsonObject, context)
+function displaySyn(word, jsonObject, context)
 {
     if(jsonObject["title"] === "No Definitions Found")
     {
@@ -70,24 +70,39 @@ function displaySyn(jsonObject, context)
         return;
     }
 
-    let str = ''
+    const cleanedWord = word.replace(/%20/g, ' ').trim();
+    let synonyms = new Set();
+
     for(let l = 0; l < Object.keys(jsonObject).length; l++)
     {
-        for(let i = 0; i < Object.keys(jsonObject[l]["meanings"]).length; i++)
+        const entry = jsonObject[l];
+        for(let i = 0; i < Object.keys(entry["meanings"]).length; i++)
         {
-            for(let j = 0; j < Object.keys(jsonObject[l]["meanings"][i]["definitions"]).length; j++)
-            try
+            const meaning = entry["meanings"][i];
+            
+            // Collect synonyms from meaning level
+            if (meaning["synonyms"]) {
+                meaning["synonyms"].forEach(s => synonyms.add(s));
+            }
+
+            // Collect synonyms from definition level
+            for(let j = 0; j < Object.keys(meaning["definitions"]).length; j++)
             {
-                for(let n = 0; n < Object.keys(jsonObject[l]["meanings"][i]["definitions"][j]["synonyms"]).length; n++)
-                {
-                str += "- " + jsonObject[l]["meanings"][i]["definitions"][j]["synonyms"][n] + '\n'
+                const definition = meaning["definitions"][j];
+                if (definition["synonyms"]) {
+                    definition["synonyms"].forEach(s => synonyms.add(s));
                 }
             }
-            catch(err){}
         }
     }
-    if(str === '')
-        sendResponse(context, "no synonym found");
-    else
+
+    if(synonyms.size === 0) {
+        sendResponse(context, `no synonym found for **${cleanedWord}**`);
+    } else {
+        let str = `**Synonyms for: ${cleanedWord}**\n\n`;
+        synonyms.forEach(s => {
+            str += "- " + s + '\n';
+        });
         sendResponse(context, str);
+    }
 }
