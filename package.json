@@ -26,6 +26,7 @@
   "homepage": "https://github.com/JoshuaRamos87/dictionary#readme",
   "dependencies": {
     "@iamtraction/google-translate": "github:iamtraction/google-translate",
+    "better-sqlite3": "^12.8.0",
     "discord.js": "^14.26.2",
     "dotenv": "^10.0.0",
     "iqdb-client": "^1.0.5",
@@ -33,6 +34,7 @@
     "typescript": "^6.0.2"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.6.0"
   }
 }

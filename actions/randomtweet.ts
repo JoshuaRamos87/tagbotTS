@@ -1,19 +1,52 @@
 import fs from 'fs';
+import path from 'path';
+import { SnowflakeUtil, EmbedBuilder } from 'discord.js';
+import * as db from '../utils/database.js';
 
-export function getTweet(context,flags){
-
-    //check if directory exists
-    if(fs.existsSync('./data/' + context.channel.id + '/tweets.json') && !flags.refresh){
-        //if it does then read the file
-        let messages = readFileTweet(context);
-
-        //send the message
-        sendRandomTweet(context,messages);
+// Migrate existing JSON data to SQLite if available
+function migrateJsonToDb(channelID: string) {
+    const jsonPath = path.join('./data', channelID, 'tweets.json');
+    if (fs.existsSync(jsonPath)) {
+        try {
+            const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+            const tweetsToSave = Object.values(data).map((item: any) => ({
+                author: item.author,
+                content: item.tweet
+            }));
+            
+            if (tweetsToSave.length > 0) {
+                db.saveTweets(channelID, tweetsToSave);
+                console.log(`Migrated ${tweetsToSave.length} tweets for channel ${channelID} to SQLite.`);
+            }
+            
+            // Rename the old file to mark it as migrated
+            fs.renameSync(jsonPath, jsonPath + '.migrated');
+        } catch (err) {
+            console.error(`Error migrating JSON for channel ${channelID}:`, err);
+        }
     }
-    else{
-        sendResponse(context, "finding your tweet now, this may take a while :3\nAfter this initial load it will be faster every time you use this command in this channel ;3");
-        //if it doesn't then create the file
-        fetchAllTweets(context);
+}
+
+export async function getTweet(context, flags) {
+    const channelID = context.channel.id;
+
+    // Refresh if requested
+    if (flags.refresh) {
+        db.clearChannelTweets(channelID);
+    } else {
+        // Attempt migration for existing data if we don't have records in DB
+        if (!db.hasTweets(channelID)) {
+            migrateJsonToDb(channelID);
+        }
+    }
+
+    if (db.hasTweets(channelID)) {
+        const tweet = db.getRandomTweet(channelID);
+        if (tweet) {
+            sendResponse(context, `${tweet.author}: ${tweet.content}`);
+        }
+    } else {
+        await fetchAllTweets(context);
     }
 }
 
@@ -28,108 +61,123 @@ async function sendResponse(context, content) {
 }
 
 async function fetchAllTweets(context) {
-
-    try{
-        
-        //get the channel id
+    try {
         let channelID = context.channel.id;
-
-        //get client from the message
         let client = context.client;
 
-        const channel = client.channels.cache.get(channelID);
-        let messages = [];
-    
-        // Create message pointer
-        let message = await channel.messages
-        .fetch({ limit: 1 })
-        .then(messagePage => (messagePage.size === 1 ? messagePage.at(0) : null));
-    
-        while (message) {
-        await channel.messages
-            .fetch({ limit: 100, before: message.id })
-            .then(messagePage => {
+        const channel = await client.channels.fetch(channelID);
+        if (!channel.isTextBased()) return;
 
-            messagePage.forEach(msg => {
-                    //if the message includes twitter and not a bot
-                    if(msg.content.includes("twitter.com") && !msg.author.bot){
-                        //add the message to the array
-                        messages.push(msg);
-                    }
-                    else return;
-                });
-    
-            // Update our message pointer to be last message in page of messages
-            message = 0 < messagePage.size ? messagePage.at(messagePage.size - 1) : null;
+        const createdTimestamp = channel.createdTimestamp;
+        const now = Date.now();
+        const duration = now - createdTimestamp;
+        const numWorkers = 12; // INCREASED WORKERS
+        const chunkDuration = Math.floor(duration / numWorkers);
+
+        let totalFound = 0;
+        let activeWorkers = numWorkers;
+
+        const initialEmbed = new EmbedBuilder()
+            .setColor(0x1DA1F2)
+            .setTitle("🐦 Super-Tweet-Crawler Active")
+            .setDescription(`Scanning <#${channelID}> for twitter links.\n\n**Workers:** ⚙️ Starting ${numWorkers} parallel crawlers...`)
+            .setFooter({ text: "Indexing the history at maximum speed." });
+
+        const message = await sendResponse(context, { embeds: [initialEmbed] });
+
+        // PROGRESS TRACKER: Update Discord UI every 3 seconds
+        const progressInterval = setInterval(async () => {
+            const updateEmbed = new EmbedBuilder()
+                .setColor(0x1DA1F2)
+                .setTitle("🐦 Super-Tweet-Crawler Scanning...")
+                .setDescription(`Building a tweet index for <#${channelID}>.\n\n**Found:** 🐦 **${totalFound.toLocaleString()}** tweets\n**Active Workers:** ⚙️ ${activeWorkers}/${numWorkers}`)
+                .setFooter({ text: "Tweets are being committed to SQLite in real-time." });
+
+            try {
+                if (message.edit) await message.edit({ embeds: [updateEmbed] });
+            } catch (e) {}
+        }, 3000);
+
+        const workerPromises = [];
+        for (let i = 0; i < numWorkers; i++) {
+            const segmentEnd = now - (i * chunkDuration);
+            const segmentStart = (i === numWorkers - 1) ? createdTimestamp : now - ((i + 1) * chunkDuration);
+            const endId = SnowflakeUtil.generate({ timestamp: segmentEnd }).toString();
+            
+            workerPromises.push((async () => {
+                try {
+                    await crawlAndStreamTweets(channel, endId, segmentStart, (count) => {
+                        totalFound += count;
+                    });
+                } finally {
+                    activeWorkers--;
+                }
+            })());
+        }
+
+        await Promise.all(workerPromises);
+        clearInterval(progressInterval);
+
+        const tweet = db.getRandomTweet(channelID);
+        if (tweet) {
+            const successEmbed = new EmbedBuilder()
+                .setColor(0x00FF00)
+                .setTitle("✅ Super-Tweet-Crawl Complete")
+                .setDescription(`Finished indexing **${totalFound.toLocaleString()}** tweets in <#${channelID}>!\n\nDatabase is now synchronized.`);
+            
+            if (message.edit) await message.edit({ embeds: [successEmbed] });
+            else await sendResponse(context, { embeds: [successEmbed] });
+
+            await sendResponse(context, `${tweet.author}: ${tweet.content}`);
+        } else {
+            sendResponse(context, "I couldn't find any tweets in this channel!");
+        }
+    } catch (err) {
+        console.error(err);
+        const errorEmbed = new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle("💥 Crawler Error")
+            .setDescription("A critical error occurred while scanning for tweets.");
+        sendResponse(context, { embeds: [errorEmbed] });
+    }
+}
+
+async function crawlAndStreamTweets(channel, beforeId, untilTimestamp, onBatchFound) {
+    let currentBefore = beforeId;
+    let localBatch = [];
+
+    while (true) {
+        const messages = await channel.messages.fetch({ limit: 100, before: currentBefore });
+        if (messages.size === 0) break;
+
+        let reachedBoundary = false;
+        for (const msg of messages.values()) {
+            if (msg.createdTimestamp < untilTimestamp) {
+                reachedBoundary = true;
+                break;
             }
-            );
+
+            if (msg.content.includes("twitter.com") && !msg.author.bot) {
+                localBatch.push({
+                    author: msg.author.username,
+                    content: msg.content
+                });
+            }
         }
 
-        //create the file if it doesn't exist
-        createFileTweet(context,messages);
-
-        //read the file
-        messages = readFileTweet(context);
-
-        //send the message
-        sendRandomTweet(context,messages);
-    }
-    catch(err){
-      //send message that the command crashed
-      sendResponse(context, "https://c.tenor.com/YM3fW1y6f8MAAAAC/crying-cute.gif\nI crashed! Owie! Let me know if you see this message! :3");
-      console.log(err);
-    }
-}
-
-function sendRandomTweet(context,messages){
-
-    //get number of keys in the messages
-    let numKeys = Object.keys(messages).length - 1;
-
-    //get a random number between 0 and the length of the array
-    let randomNumber = Math.floor(Math.random() * numKeys).toString();
-
-    //send the message with author and image
-    sendResponse(context, messages[randomNumber].author + ": " + messages[randomNumber].tweet);
-}
-
-function createFileTweet(context, messages){
-
-    //create a new array size of messages array
-    let newMessages = new Array(messages.length);
-
-    //loop through the messages and add them to the new object
-    for(let i = 0; i < messages.length; ++i){
-        newMessages[i] = {
-            "author": messages[i].author.username,
-            "tweet": messages[i].content,
-            "channelId": context.channel.id
+        // SAVE BATCH: every 200 tweets
+        if (localBatch.length >= 200) {
+            db.saveTweets(channel.id, localBatch);
+            onBatchFound(localBatch.length);
+            localBatch = [];
         }
+
+        if (reachedBoundary) break;
+        currentBefore = messages.lastKey();
     }
 
-
-    var rv = {};
-    for (var i = 0; i < newMessages.length; ++i)
-        rv[i] = newMessages[i];
-
-    fs.mkdirSync(
-
-        './data/' + context.channel.id,
-
-        { recursive: true }
-    );
-
-    fs.writeFileSync('data/' + context.channel.id + '/tweets.json', JSON.stringify(rv), 'utf8');
-    
-}
-
-function readFileTweet(context){
-
-    let messages = fs.readFileSync('data/' + context.channel.id + '/tweets.json').toString();
-
-    Object.entries(JSON.parse(messages)).forEach( ([key, value]) => {
-        messages[key] = value;
-    } );
-
-    return JSON.parse(messages);
+    if (localBatch.length > 0) {
+        db.saveTweets(channel.id, localBatch);
+        onBatchFound(localBatch.length);
+    }
 }
