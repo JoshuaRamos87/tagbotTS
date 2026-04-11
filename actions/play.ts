@@ -10,14 +10,14 @@ import {
 } from '@discordjs/voice';
 import { Innertube } from 'youtubei.js';
 import ytdl from 'youtube-dl-exec';
-import { ChatInputCommandInteraction, Message, GuildMember } from 'discord.js';
+import { ChatInputCommandInteraction, Message, GuildMember, ActivityType, EmbedBuilder } from 'discord.js';
 import { Readable } from 'node:stream';
 
 let yt: Innertube;
+let statusInterval: NodeJS.Timeout | null = null;
 
 async function getYouTube() {
     if (!yt) {
-        console.log("[YouTube] Initializing Innertube for metadata...");
         yt = await Innertube.create({
             generate_session_locally: true,
             location: 'US'
@@ -26,7 +26,14 @@ async function getYouTube() {
     return yt;
 }
 
-async function sendResponse(context: any, content: string) {
+function formatTime(ms: number) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+async function sendResponse(context: any, content: any) {
     try {
         if (context.replied !== undefined) {
             if (context.deferred || context.replied) {
@@ -49,10 +56,16 @@ export async function stopPlayback(context: any) {
     const guild = context.guild;
     if (!guild) return;
 
+    if (statusInterval) {
+        clearInterval(statusInterval);
+        statusInterval = null;
+    }
+    guild.client.user?.setActivity(null);
+
     const connection = getVoiceConnection(guild.id);
     if (connection) {
         connection.destroy();
-        await sendResponse(context, "⏹️ Disconnected from voice.");
+        await sendResponse(context, "⏹️ Disconnected.");
     } else {
         await sendResponse(context, "❌ Not in a voice channel.");
     }
@@ -75,13 +88,11 @@ export async function playYouTube(url: string, context: any) {
 
     try {
         const youtube = await getYouTube();
-        console.log(`[Play] Targeting Video: ${videoId}`);
         
         let info;
         try {
             info = await youtube.getBasicInfo(videoId);
         } catch (e) {
-            console.log("[Play] Basic info fetch failed, attempting search...");
             const search = await youtube.search(input);
             const firstVideo = search.videos?.[0];
             if (!firstVideo || !('id' in firstVideo)) throw new Error("Video not found.");
@@ -89,23 +100,16 @@ export async function playYouTube(url: string, context: any) {
         }
 
         const title = info.basic_info.title || "YouTube Audio";
-        console.log(`[Play] Found: "${title}"`);
+        const durationSeconds = info.basic_info.duration || 0;
+        const thumbnail = info.basic_info.thumbnail?.[0]?.url;
 
-        console.log(`[Play] Initializing yt-dlp binary stream for ultimate bypass...`);
-
-        // Using yt-dlp binary directly to stream the audio
-        // This completely bypasses the 403 Forbidden Node.js fetch blocks
         const ytDlpProcess = ytdl.exec(cleanUrl, {
             output: '-',
             format: 'bestaudio',
             quiet: true
         }, { stdio: ['ignore', 'pipe', 'ignore'] });
 
-        if (!ytDlpProcess.stdout) {
-            throw new Error("Failed to initialize yt-dlp audio stream.");
-        }
-
-        const nodeStream = ytDlpProcess.stdout as Readable;
+        if (!ytDlpProcess.stdout) throw new Error("Failed to initialize stream.");
 
         const connection = joinVoiceChannel({
             channelId: member.voice.channel.id,
@@ -116,35 +120,82 @@ export async function playYouTube(url: string, context: any) {
         await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
 
         const player = createAudioPlayer();
-        const resource = createAudioResource(nodeStream, {
+        const resource = createAudioResource(ytDlpProcess.stdout as Readable, {
             inputType: StreamType.Arbitrary,
             inlineVolume: true
         });
 
-        resource.volume?.setVolume(1.0);
         connection.subscribe(player);
         player.play(resource);
 
-        player.on(AudioPlayerStatus.Playing, () => {
-            console.log(`[Status] yt-dlp streaming to Discord: ${title}`);
+        // Create Initial Embed
+        const createEmbed = (current: string, total: string) => {
+            return new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setTitle(title)
+                .setURL(cleanUrl)
+                .setAuthor({ name: 'Now Playing', iconURL: 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png' })
+                .setThumbnail(thumbnail || null)
+                .setDescription(`▶️ **${current} / ${total}**`)
+                .setTimestamp();
+        };
+
+        const totalTimeStr = formatTime(durationSeconds * 1000);
+        const initialEmbed = createEmbed("0:00", totalTimeStr);
+        
+        // Use sendResponse and capture the message
+        let response = await sendResponse(context, { embeds: [initialEmbed] });
+        
+        // Handle case where sendResponse returns an InteractionResponse or Message
+        let message: Message | null = null;
+        if (response instanceof Message) {
+            message = response;
+        } else if (context.fetchReply) {
+            message = await context.fetchReply();
+        }
+
+        // Update Interval
+        if (statusInterval) clearInterval(statusInterval);
+        
+        statusInterval = setInterval(async () => {
+            if (player.state.status === AudioPlayerStatus.Playing) {
+                const playedMs = resource.playbackDuration;
+                const currentTimeStr = formatTime(playedMs);
+                
+                // Update Presence
+                context.client.user?.setActivity(`${currentTimeStr} / ${totalTimeStr}`, { 
+                    type: ActivityType.Listening 
+                });
+
+                // Update Embed
+                if (message && message.editable) {
+                    try {
+                        await message.edit({ embeds: [createEmbed(currentTimeStr, totalTimeStr)] });
+                    } catch (e) {
+                        console.error("[Embed Update Error] Likely rate limited or deleted.");
+                    }
+                }
+            }
+        }, 5000); // 5 seconds to be safe with Discord rate limits for edits
+
+        player.on(AudioPlayerStatus.Idle, () => {
+            if (statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = null;
+            }
+            context.client.user?.setActivity(null);
+            if (message && message.editable) {
+                message.edit({ content: "Finished playing.", embeds: [] }).catch(() => {});
+            }
         });
 
         player.on('error', error => {
             console.error(`[AudioPlayer Error] ${error.message}`);
+            if (statusInterval) clearInterval(statusInterval);
         });
-
-        ytDlpProcess.on('close', code => {
-            if (code !== 0 && code !== null) {
-                console.error(`[yt-dlp Error] Process exited with code ${code}`);
-            }
-        });
-
-        await sendResponse(context, `🎶 Now playing: **${title}**\n${cleanUrl}`);
 
     } catch (error: any) {
         console.error("[Play Error]", error.message);
-        await sendResponse(context, `❌ Play Error: ${error.message || "Failed to stream audio."}`);
+        await sendResponse(context, `❌ Play Error: ${error.message}`);
     }
 }
-
-

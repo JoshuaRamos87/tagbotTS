@@ -3,7 +3,7 @@ import { stopPlayback } from '../actions/play.js';
 
 export const data = new SlashCommandBuilder()
     .setName('stop')
-    .setDescription('Stops playback and leaves the voice channel');
+    .setDescription('Stops the current audio and leaves the voice channel');
 
 export async function execute(interaction: ChatInputCommandInteraction) {
     await stopPlayback(interaction);
