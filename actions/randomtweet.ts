@@ -1,20 +1,19 @@
-module.exports = {
-    //finds a random sent message that exists in the channel
-    getTweet: function(context,flags){
+import fs from 'fs';
 
-        //check if directory exists
-        if(require('fs').existsSync('./data/' + context.channel.id + '/tweets.json') && !flags.refresh){
-            //if it does then read the file
-            let messages = readFileTweet(context);
+export function getTweet(context,flags){
 
-            //send the message
-            sendRandomTweet(context,messages);
-        }
-        else{
-            sendResponse(context, "finding your tweet now, this may take a while :3\nAfter this initial load it will be faster every time you use this command in this channel ;3");
-            //if it doesn't then create the file
-            fetchAllTweets(context);
-        }
+    //check if directory exists
+    if(fs.existsSync('./data/' + context.channel.id + '/tweets.json') && !flags.refresh){
+        //if it does then read the file
+        let messages = readFileTweet(context);
+
+        //send the message
+        sendRandomTweet(context,messages);
+    }
+    else{
+        sendResponse(context, "finding your tweet now, this may take a while :3\nAfter this initial load it will be faster every time you use this command in this channel ;3");
+        //if it doesn't then create the file
+        fetchAllTweets(context);
     }
 }
 
@@ -113,27 +112,20 @@ function createFileTweet(context, messages){
     for (var i = 0; i < newMessages.length; ++i)
         rv[i] = newMessages[i];
 
-    require('fs').mkdirSync(
+    fs.mkdirSync(
 
         './data/' + context.channel.id,
 
-        { recursive: true },
-
-        function (err) {
-            if (err) throw err;
-            console.log('Directory created successfully!');
-        }
+        { recursive: true }
     );
 
-    require('fs').writeFileSync('data/' + context.channel.id + '/tweets.json', JSON.stringify(rv), 'utf8');
+    fs.writeFileSync('data/' + context.channel.id + '/tweets.json', JSON.stringify(rv), 'utf8');
     
 }
 
 function readFileTweet(context){
 
-    let messages = require('fs').readFileSync('data/' + context.channel.id + '/tweets.json', function (err) {
-        console.log('complete');
-    }).toString();
+    let messages = fs.readFileSync('data/' + context.channel.id + '/tweets.json').toString();
 
     Object.entries(JSON.parse(messages)).forEach( ([key, value]) => {
         messages[key] = value;

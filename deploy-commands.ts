@@ -1,17 +1,18 @@
-require("dotenv").config();
-const { REST, Routes } = require('discord.js');
-const fs = require('node:fs');
-const path = require('node:path');
+import 'dotenv/config';
+import { REST, Routes } from 'discord.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const commands = [];
 // Grab all the command files from the commands directory created earlier
-const commandsPath = path.join(__dirname, 'commands');
+const commandsPath = path.join(import.meta.dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.ts') || file.endsWith('.js'));
 
 // Grab the SlashCommandBuilder#toJSON() output of each command's data for deployment
 for (const file of commandFiles) {
 	const filePath = path.join(commandsPath, file);
-	const command = require(filePath);
+	const command = await import(pathToFileURL(filePath).href);
 	if ('data' in command && 'execute' in command) {
 		commands.push(command.data.toJSON());
 	} else {
@@ -38,7 +39,7 @@ const rest = new REST().setToken(process.env.TOKEN);
 		const data = await rest.put(
 			Routes.applicationCommands(process.env.CLIENT_ID),
 			{ body: commands },
-		);
+		) as any[];
 
 		console.log(`Successfully reloaded ${data.length} application (/) commands.`);
 	} catch (error) {

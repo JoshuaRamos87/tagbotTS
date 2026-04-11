@@ -1,42 +1,40 @@
-module.exports = {
+import http from "https";
 
-    findWord: function(word, context, wordAction)
-    {
-      const http = require("https");
-      let options = {
-          "method": "GET",
-          "hostname": "api.dictionaryapi.dev",
-          "path": '/api/v2/entries/en_US/',
-      };
-      options["path"] += word
-      let req = http.request(options, function (res) {
-      let chunks = [];
-      
-      res.on("data", function (chunk) {
-          chunks.push(chunk);
-      });
-      res.on("end", function () {
-              let body = Buffer.concat(chunks);
-              let jsonObject = JSON.parse(body.toString())  
+export function findWord(word, context, wordAction)
+{
+    let options = {
+        "method": "GET",
+        "hostname": "api.dictionaryapi.dev",
+        "path": '/api/v2/entries/en_US/',
+    };
+    options["path"] += word
+    let req = http.request(options, function (res) {
+    let chunks = [];
     
-            if(jsonObject["title"] === "No Definitions Found")
-            {
-              sendResponse(context, jsonObject["title"]);
-              return
-            }
+    res.on("data", function (chunk) {
+        chunks.push(chunk);
+    });
+    res.on("end", function () {
+            let body = Buffer.concat(chunks);
+            let jsonObject = JSON.parse(body.toString())  
 
-              try
-              {
-                switch(wordAction)
-                {
-                    case "def": displayDef(jsonObject, context); break;
-                    case "syn": displaySyn(jsonObject, context); break;
-                }
-              }catch(err){}
-          });
-      });
-      req.end();
-    }
+        if(jsonObject["title"] === "No Definitions Found")
+        {
+            sendResponse(context, jsonObject["title"]);
+            return
+        }
+
+            try
+            {
+            switch(wordAction)
+            {
+                case "def": displayDef(jsonObject, context); break;
+                case "syn": displaySyn(jsonObject, context); break;
+            }
+            }catch(err){}
+        });
+    });
+    req.end();
 }
 
 async function sendResponse(context, content) {

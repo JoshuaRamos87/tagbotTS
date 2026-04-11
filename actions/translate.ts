@@ -1,3 +1,4 @@
+import translate from '@iamtraction/google-translate';
 
 async function sendResponse(context, content) {
     if (context.reply) {
@@ -9,10 +10,8 @@ async function sendResponse(context, content) {
     return context.channel.send(content);
 }
 
-module.exports = function (context, lang, text)
+export default function (context, lang, text)
 {
-    const translate = require('@iamtraction/google-translate');
-
     translate(text, { to: lang }).then(res => {
         sendResponse(context, res.text);
     }).catch(err => {

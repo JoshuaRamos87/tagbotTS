@@ -1,47 +1,46 @@
-module.exports = {
-    //finds a random sent message that exists in the channel
-    getImage: function(context,flags){
+import fs from 'fs';
 
-        let channelID = context.channel.id;
+export function getImage(context,flags){
 
-        //if the message is in a thread then get the parent message
-        if(context.channel.isThread()){
-            channelID = context.channel.parentId;
-        }
+    let channelID = context.channel.id;
+
+    //if the message is in a thread then get the parent message
+    if(context.channel.isThread()){
+        channelID = context.channel.parentId;
+    }
 
 
-        //if statement for memes not neccessary at all should be removed in the future lol
-        //searches a json for a specific channel id that is full of sus images
-        if(flags.sus){
+    //if statement for memes not neccessary at all should be removed in the future lol
+    //searches a json for a specific channel id that is full of sus images
+    if(flags.sus){
 
-            //if directory doesn't exist send message that directory doesn't exist
-            if(!require('fs').existsSync('./data/1010205484554391552/images.json')){
-                sendResponse(context, "Nice Try");
-                return;
-            }
-
-            let messages = require('fs').readFileSync('./data/1010205484554391552/images.json').toString();
-            Object.entries(JSON.parse(messages)).forEach( ([key, value]) => {
-                messages[key] = value;
-            } );
-            messages = JSON.parse(messages);
-            sendRandomMessage(context,messages);
+        //if directory doesn't exist send message that directory doesn't exist
+        if(!fs.existsSync('./data/1010205484554391552/images.json')){
+            sendResponse(context, "Nice Try");
             return;
         }
 
-        //check if directory exists
-        if(require('fs').existsSync('./data/' + channelID + '/images.json') && !flags.refresh){
-            //if it does then read the file
-            let messages = readFile(context,channelID);
+        let messages = fs.readFileSync('./data/1010205484554391552/images.json').toString();
+        Object.entries(JSON.parse(messages)).forEach( ([key, value]) => {
+            messages[key] = value;
+        } );
+        messages = JSON.parse(messages);
+        sendRandomMessage(context,messages);
+        return;
+    }
 
-            //send the message
-            sendRandomMessage(context,messages);
-        }
-        else{
-            sendResponse(context, "finding your image now, this may take a while :3\nAfter this initial load it will be faster every time you use this command in this channel ;3");
-            //if it doesn't then create the file
-            fetchAllImages(context,channelID);
-        }
+    //check if directory exists
+    if(fs.existsSync('./data/' + channelID + '/images.json') && !flags.refresh){
+        //if it does then read the file
+        let messages = readFile(context,channelID);
+
+        //send the message
+        sendRandomMessage(context,messages);
+    }
+    else{
+        sendResponse(context, "finding your image now, this may take a while :3\nAfter this initial load it will be faster every time you use this command in this channel ;3");
+        //if it doesn't then create the file
+        fetchAllImages(context,channelID);
     }
 }
 
@@ -137,27 +136,20 @@ function createFile(context, messages, channelID){
     for (var i = 0; i < newMessages.length; ++i)
         rv[i] = newMessages[i];
 
-    require('fs').mkdirSync(
+    fs.mkdirSync(
 
         './data/' + channelID,
 
-        { recursive: true },
-
-        function (err) {
-            if (err) throw err;
-            console.log('Directory created successfully!');
-        }
+        { recursive: true }
     );
 
-    require('fs').writeFileSync('data/' + channelID + '/images.json', JSON.stringify(rv), 'utf8');
+    fs.writeFileSync('data/' + channelID + '/images.json', JSON.stringify(rv), 'utf8');
     
 }
 
 function readFile(context,channelID){
 
-    let messages = require('fs').readFileSync('data/' + channelID + '/images.json', function (err) {
-        console.log('complete');
-    }).toString();
+    let messages = fs.readFileSync('data/' + channelID + '/images.json').toString();
 
     Object.entries(JSON.parse(messages)).forEach( ([key, value]) => {
         messages[key] = value;

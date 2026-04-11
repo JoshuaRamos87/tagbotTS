@@ -1,27 +1,23 @@
-const { searchPic } = require("iqdb-client");
+import { searchPic } from "iqdb-client";
 
-
-module.exports = {
-
-    findSauce: async function (context,URL,flags)
+export async function findSauce(context,URL,flags)
+{
+    let result;
+    sendResponse(context, "Loading results...")
+    if(flags["-g"] || flags["gelbooru"])
     {
-      let result;
-      sendResponse(context, "Loading results...")
-      if(flags["-g"] || flags["gelbooru"])
-      {
-        result = (await searchPic(URL, { lib: 'gelbooru' }))
-      }
-      else
-      {
-        result = (await searchPic(URL, { lib: 'www' }))
-      }
-      if(result.ok)
-      {
-        displayImageSauce(context,result.data);
-      }
-      else{
-        sendResponse(context, "No good source found :(");
-      }
+    result = (await searchPic(URL, { lib: 'gelbooru' }))
+    }
+    else
+    {
+    result = (await searchPic(URL, { lib: 'www' }))
+    }
+    if(result.ok)
+    {
+    displayImageSauce(context,result.data);
+    }
+    else{
+    sendResponse(context, "No good source found :(");
     }
 }
 

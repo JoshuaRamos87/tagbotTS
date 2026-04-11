@@ -1,14 +1,14 @@
-const dictionary = require('./actions/dictionary')
-const fa = require('./actions/findAnime')
-const fs = require('./actions/findSauce')
-const translate = require('./actions/translate')
-const randomimage = require('./actions/randomimage')
-const randomtweet = require('./actions/randomtweet')
-const dolphin = require('./actions/dolphin')
+import * as dictionary from './actions/dictionary.js'
+import * as fa from './actions/findAnime.js'
+import * as findSauceAction from './actions/findSauce.js'
+import translate from './actions/translate.js'
+import * as randomimage from './actions/randomimage.js'
+import * as randomtweet from './actions/randomtweet.js'
+import * as dolphin from './actions/dolphin.js'
 
 
 //finds the command the user has entered
-module.exports = function(msg)
+export default function(msg)
 {
   try{
     if(msg.toString().includes("$define"))
@@ -58,7 +58,7 @@ module.exports = function(msg)
     {
       let ret = getSauceFlags(msg);
       let URL = msg.toString().split(" ")[ret.urlIndex];
-      fs.findSauce(msg,URL,ret.flags);
+      findSauceAction.findSauce(msg,URL,ret.flags);
       ret.flags = {};
 
     }
@@ -192,4 +192,3 @@ module.exports = function(msg)
     return {flags,urlIndex};
   }
 }
-

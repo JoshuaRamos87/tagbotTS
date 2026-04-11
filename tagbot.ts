@@ -1,7 +1,14 @@
-require("dotenv").config();
-const fs = require('node:fs');
-const path = require('node:path');
-const { Client, Collection, GatewayIntentBits } = require("discord.js");
+import 'dotenv/config';
+import fs from 'node:fs';
+import path from 'node:path';
+import { Client, Collection, GatewayIntentBits } from "discord.js";
+import { pathToFileURL } from 'node:url';
+
+declare module 'discord.js' {
+  export interface Client {
+    commands: Collection<string, any>;
+  }
+}
 
 const mySecret = process.env.TOKEN;
 
@@ -15,12 +22,12 @@ const client = new Client({
 
 // Load Commands
 client.commands = new Collection();
-const commandsPath = path.join(__dirname, 'commands');
+const commandsPath = path.join(import.meta.dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.ts') || file.endsWith('.js'));
 
 for (const file of commandFiles) {
 	const filePath = path.join(commandsPath, file);
-	const command = require(filePath);
+	const command = await import(pathToFileURL(filePath).href);
 	// Set a new item in the Collection with the key as the command name and the value as the exported module
 	if ('data' in command && 'execute' in command) {
 		client.commands.set(command.data.name, command);
@@ -29,7 +36,7 @@ for (const file of commandFiles) {
 	}
 }
 
-const commandHandler = require('./command');
+import commandHandler from './command.js';
 
 console.log('hello')
 

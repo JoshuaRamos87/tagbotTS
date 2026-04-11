@@ -1,35 +1,33 @@
-module.exports = {
+import http from "https";
 
-    findAnime: function(URL,flags,context)
-    {
-        const http = require("https");
-        let options = {
-            "method": "GET",
-            "hostname": "api.trace.moe",
-            "path": '/search?anilistInfo&url=',
-        };
-        console.log(URL)
-        options["path"] += URL
+export function findAnime(URL,flags,context)
+{
+    let options = {
+        "method": "GET",
+        "hostname": "api.trace.moe",
+        "path": '/search?anilistInfo&url=',
+    };
+    console.log(URL)
+    options["path"] += URL
 
-        let req = http.request(options, function (res) {
-        let chunks = [];
+    let req = http.request(options, function (res) {
+    let chunks = [];
 
-        res.on("data", function (chunk) {
-            chunks.push(chunk);
+    res.on("data", function (chunk) {
+        chunks.push(chunk);
+    });
+
+    res.on("end", function () {
+            let body = Buffer.concat(chunks);
+            let jsonObject = JSON.parse(body.toString())  
+
+            try{
+                displayAnime(jsonObject,context,flags);
+            } catch(err){}
         });
 
-        res.on("end", function () {
-                let body = Buffer.concat(chunks);
-                let jsonObject = JSON.parse(body.toString())  
-
-                try{
-                    displayAnime(jsonObject,context,flags);
-                } catch(err){}
-            });
-
-        });
-        req.end();
-    }
+    });
+    req.end();
 }
 
 async function sendResponse(context, content) {
