@@ -3,17 +3,10 @@ import * as randomimage from '../actions/randomimage.js';
 
 export const data = new SlashCommandBuilder()
     .setName('randomimage')
-    .setDescription('Fetches a random image from the channel history')
-    .addBooleanOption(option => 
-        option.setName('refresh')
-            .setDescription('Refresh the image cache for this channel'))
-    .addBooleanOption(option => 
-        option.setName('sus')
-            .setDescription('Search for sus images (experimental)'));
+    .setDescription('Fetches a random image from the channel history');
 
 export async function execute(interaction) {
-    const refresh = interaction.options.getBoolean('refresh') || false;
-    const sus = interaction.options.getBoolean('sus') || false;
+    console.log(`Command: randomimage | Channel: ${interaction.channelId}`);
     await interaction.deferReply();
-    randomimage.getImage(interaction, { refresh, sus });
+    randomimage.getImage(interaction);
 }

@@ -98,10 +98,7 @@ export default function(msg)
             msg.channel.send("Good Afternoon!");
           }
     else if(msg.toString().toLowerCase().includes("$randomimage") || msg.toString().toLowerCase().includes("$ri")){
-      
-      let flags = getRandomFlags(msg);
-
-      randomimage.getImage(msg,flags);
+      randomimage.getImage(msg);
     }
     else if(msg.toString().toLowerCase().includes("$randomtweet") || msg.toString().toLowerCase().includes("$rtw")){
       
@@ -134,15 +131,12 @@ export default function(msg)
     console.log(err);
   }
 
-  //get the flags for the random image command
+  //get the flags for the random commands
   function getRandomFlags(msg){
       let flags: any = {};
 
       if(msg.toString().includes("-r") || msg.toString().includes("-refresh")){
         flags.refresh = true;
-      }
-      else if(msg.toString().includes("-sus") || msg.toString().includes("-s")){
-        flags.sus = true;
       }
       
       return flags;

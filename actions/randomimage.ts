@@ -29,32 +29,14 @@ function migrateJsonToDb(channelID: string) {
     }
 }
 
-export async function getImage(context, flags) {
+export async function getImage(context) {
     let channelID = context.channel.id;
 
     if (context.channel.isThread()) {
         channelID = context.channel.parentId;
     }
 
-    if (flags.sus) {
-        const susChannelId = "1010205484554391552";
-        if (!db.hasImages(susChannelId)) migrateJsonToDb(susChannelId);
-
-        if (!db.hasImages(susChannelId)) {
-            const embed = new EmbedBuilder().setColor(0xFF0000).setTitle("Access Denied").setDescription("Nice try, but I couldn't find those images. :P");
-            sendResponse(context, { embeds: [embed] });
-            return;
-        }
-
-        const img = db.getRandomImage(susChannelId);
-        if (img) sendResponse(context, `${img.author}: ${img.url}`);
-        return;
-    }
-
-    // Refresh
-    if (flags.refresh) {
-        db.clearChannelImages(channelID);
-    } else if (!db.hasImages(channelID)) {
+    if (!db.hasImages(channelID)) {
         migrateJsonToDb(channelID);
     }
 
