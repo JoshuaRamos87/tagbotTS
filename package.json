@@ -7,8 +7,9 @@
   "scripts": {
     "start-win": "tsc && node ./build/deploy-commands.js && node ./build/tagbot.js",
     "start-linux": "npm run build-linux",
-    "build-win": "tsc && node ./build/tagbot.js",
-    "deploy": "tsc && node ./build/deploy-commands.js",
+    "build-win": "rimraf build && tsc",
+    "run-win": "node ./build/tagbot.js",
+    "deploy": "rimraf build && tsc && node ./build/deploy-commands.js",
     "build-linux": "tsc && pm2 start ./build/tagbot.js"
   },
   "repository": {
@@ -25,16 +26,23 @@
   },
   "homepage": "https://github.com/JoshuaRamos87/dictionary#readme",
   "dependencies": {
+    "@discordjs/voice": "^0.19.2",
     "@iamtraction/google-translate": "github:iamtraction/google-translate",
     "better-sqlite3": "^12.8.0",
     "discord.js": "^14.26.2",
     "dotenv": "^10.0.0",
+    "ffmpeg-static": "^5.3.0",
     "iqdb-client": "^1.0.5",
+    "libsodium-wrappers": "^0.8.3",
+    "opusscript": "^0.0.8",
     "ts-node": "^10.5.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "youtube-dl-exec": "^3.1.4",
+    "youtubei.js": "^17.0.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^25.6.0"
+    "@types/node": "^25.6.0",
+    "rimraf": "^6.1.3"
   }
 }

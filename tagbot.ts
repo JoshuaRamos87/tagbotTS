@@ -16,7 +16,8 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates
   ]
 });
 
@@ -35,8 +36,6 @@ for (const file of commandFiles) {
 		console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
 	}
 }
-
-import commandHandler from './command.js';
 
 console.log('hello')
 
@@ -67,10 +66,4 @@ client.on("interactionCreate", async interaction => {
 			await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
 		}
 	}
-});
-
-// Legacy Message Command Handler
-client.on("messageCreate", msg => { 
-    if(msg.author.bot) return;
-    commandHandler(msg);
 });

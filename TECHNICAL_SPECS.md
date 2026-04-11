@@ -1,65 +1,52 @@
 # Technical Specifications: tagbotTS
 
 ## Project Overview
-**tagbotTS** is a multi-functional Discord bot written in TypeScript. It provides a variety of utility and entertainment features, ranging from dictionary lookups and language translation to anime/image source discovery and AI-powered interactions.
+**tagbotTS** is a multi-functional Discord bot written in TypeScript. It provides a variety of utility and entertainment features, ranging from dictionary lookups and language translation to anime/image source discovery, AI-powered interactions, and voice channel audio streaming.
 
 ## Core Technology Stack
 - **Language:** TypeScript / Node.js
-- **Bot Framework:** [discord.js v13](https://discord.js.org/)
-- **Runtime:** `ts-node` (development) / `node` (production after `tsc` build)
+- **Bot Framework:** [discord.js v14](https://discord.js.org/)
+- **Runtime:** `node` (production after `tsc` build)
 - **APIs & Libraries:**
   - **Dictionary:** [Free Dictionary API](https://dictionaryapi.dev/)
   - **Anime Search:** [trace.moe API](https://soruly.github.io/trace.moe-api/)
   - **Image Sauce:** [iqdb-client](https://www.npmjs.com/package/iqdb-client)
   - **Translation:** [@iamtraction/google-translate](https://www.npmjs.com/package/@iamtraction/google-translate)
   - **AI Integration:** Local [Ollama](https://ollama.com/) instance (running `dolphin-mixtral:8x7b`)
+  - **Audio Streaming:** [YouTube.js (Innertube)](https://github.com/LuanRT/YouTube.js) and [@discordjs/voice](https://discord.js.org/docs/packages/voice)
 
 ## Architecture
 The project follows a modular "action-based" architecture:
-- **Entry Point:** `tagbot.ts` initializes the Discord client and sets up the message listener.
-- **Command Router:** `command.ts` parses incoming messages, identifies commands/flags, and routes them to the appropriate action module.
-- **Actions:** Individual feature logic is encapsulated in the `actions/` directory (e.g., `dictionary.ts`, `findAnime.ts`).
-- **Data Persistence:** Local JSON files stored in `./data/[channelID]/` are used to cache channel history for specific commands.
+- **Entry Point:** `tagbot.ts` initializes the Discord client (v14) and handles Slash Commands.
+- **Commands Directory:** `/commands` contains modern Slash Command definitions.
+- **Actions:** Individual feature logic is encapsulated in the `actions/` directory (e.g., `dictionary.ts`, `play.ts`).
+- **Data Persistence:** [SQLite](https://www.sqlite.org/) (via `better-sqlite3`) is used to store image and tweet metadata.
 
 ## Key Features & Command Reference
 
 ### 1. Dictionary & Linguistics
-- `$define <word>`: Fetches and displays definitions.
-- `$synonym <word>`: Fetches and displays synonyms.
-- `$translate [language] [text]`: Translates text using Google Translate. Supports language names or ISO codes.
+- `/define <word>`: Fetches and displays definitions.
+- `/synonym <word>`: Fetches and displays synonyms.
+- `/translate [language] [text]`: Translates text using Google Translate.
 
 ### 2. Source Discovery
-- `$FindAnime [flags] <URL>`: Searches for anime source using a screenshot URL.
-  - `-i`: Include image in results.
-  - `-v`: Include video preview in results.
-  - `-l=<number>`: Limit results (default: 1).
-- `$FindSauce [flags] <URL>`: Searches for artwork source using IQDB.
-  - `-g`: Use Gelbooru-specific source links.
+- `/findanime <URL>`: Searches for anime source using a screenshot URL.
+- `/findsauce <URL>`: Searches for artwork source using IQDB.
 
-### 3. Media & History Crawling
-These commands crawl the channel's message history to find attachments or links and cache them locally for fast random access.
-- `$randomimage` (or `$ri`): Fetches a random image previously posted in the channel.
-  - `-r` / `-refresh`: Force a re-crawl of the channel history.
-  - `-sus` / `-s`: Access a specific hardcoded "sus" image repository.
-- `$randomtweet` (or `$rtw`): Fetches a random Twitter/X link previously posted in the channel.
+### 3. Voice & Audio (YouTube)
+- `/play <URL>`: Joins the user's voice channel and streams audio.
+  - Automatically extracts video IDs from malformed URLs.
+  - Uses `YouTube.js` to bypass metadata blocks and `ffmpeg` for stable streaming.
+- `/stop`: Stops playback and leaves the voice channel.
 
-### 4. AI Interaction (Ollama)
-- `$dolphin "<prompt>"` (or `$d`): Sends a quoted prompt to a local Ollama instance running the `dolphin-mixtral:8x7b` model.
+### 4. Media & History Crawling
+- `/randomimage` (or `/ri`): Fetches a random image from the channel's history (cached in SQLite).
+- `/randomtweet` (or `/rtw`): Fetches a random Twitter/X link from the channel's history.
 
-### 5. Utilities & Interactions
-- **Greetings:** Responds to "gm", "gn", "ga", "good morning", etc.
-- **System:** `$help` (command list), `$version` (current version info).
+### 5. AI Interaction (Ollama)
+- `/dolphin <prompt>`: Sends a prompt to a local Ollama instance.
 
 ## Technical Implementation Details
-- **Data Caching:** To avoid repeated heavy API/Discord calls, the bot scrapes channel history and stores metadata in `./data/[channelID]/images.json` or `tweets.json`.
-- **Environment Configuration:** Requires a `.env` file containing a `TOKEN` variable (Discord Bot Token).
-- **Error Handling:** Centralized try-catch in the command router with a fallback error message and GIF response to ensure the bot remains online.
-- **Build Process:** Uses `tsc` to compile TypeScript to JavaScript in the `build/` directory.
-
-## File Structure
-- `tagbot.ts`: Main initialization.
-- `command.ts`: Command parsing and routing.
-- `actions/`: Feature implementations.
-- `data/`: Local cache storage (Git-ignored).
-- `tsconfig.json`: TypeScript configuration.
-- `package.json`: Dependency and script management.
+- **Build Process:** Uses `npm run build-win` to perform a clean `tsc` compilation into the `build/` directory.
+- **Command Deployment:** Uses `npm run deploy` to register Slash Commands with the Discord API.
+- **Environment Configuration:** Requires a `.env` file with `TOKEN` and `CLIENT_ID`.
