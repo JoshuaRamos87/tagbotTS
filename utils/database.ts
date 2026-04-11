@@ -17,17 +17,21 @@ db.exec(`
     CREATE TABLE IF NOT EXISTS images (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         channel_id TEXT NOT NULL,
+        message_id TEXT,
         author TEXT NOT NULL,
         url TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(channel_id, message_id)
     );
     CREATE INDEX IF NOT EXISTS idx_images_channel_id ON images(channel_id);
     CREATE TABLE IF NOT EXISTS tweets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         channel_id TEXT NOT NULL,
+        message_id TEXT,
         author TEXT NOT NULL,
         content TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(channel_id, message_id)
     );
     CREATE INDEX IF NOT EXISTS idx_tweets_channel_id ON tweets(channel_id);
 `);
@@ -35,6 +39,7 @@ db.exec(`
 export interface ImageRecord {
     id: number;
     channel_id: string;
+    message_id: string;
     author: string;
     url: string;
 }
@@ -42,20 +47,26 @@ export interface ImageRecord {
 export interface TweetRecord {
     id: number;
     channel_id: string;
+    message_id: string;
     author: string;
     content: string;
 }
 
-export function saveImages(channelId: string, images: { author: string, url: string }[]) {
-    const insert = db.prepare('INSERT INTO images (channel_id, author, url) VALUES (?, ?, ?)');
+export function saveImages(channelId: string, images: { author: string, url: string, message_id?: string }[]) {
+    const insert = db.prepare('INSERT OR IGNORE INTO images (channel_id, author, url, message_id) VALUES (?, ?, ?, ?)');
     
-    const insertMany = db.transaction((channelId: string, images: { author: string, url: string }[]) => {
+    const insertMany = db.transaction((channelId: string, images: { author: string, url: string, message_id?: string }[]) => {
         for (const img of images) {
-            insert.run(channelId, img.author, img.url);
+            insert.run(channelId, img.author, img.url, img.message_id || null);
         }
     });
 
     insertMany(channelId, images);
+}
+
+export function getLastImageId(channelId: string): string | undefined {
+    const result = db.prepare('SELECT message_id FROM images WHERE channel_id = ? AND message_id IS NOT NULL ORDER BY message_id DESC LIMIT 1').get(channelId) as { message_id: string };
+    return result ? result.message_id : undefined;
 }
 
 export function getRandomImage(channelId: string): ImageRecord | undefined {
@@ -71,16 +82,21 @@ export function hasImages(channelId: string): boolean {
     return result.count > 0;
 }
 
-export function saveTweets(channelId: string, tweets: { author: string, content: string }[]) {
-    const insert = db.prepare('INSERT INTO tweets (channel_id, author, content) VALUES (?, ?, ?)');
+export function saveTweets(channelId: string, tweets: { author: string, content: string, message_id?: string }[]) {
+    const insert = db.prepare('INSERT OR IGNORE INTO tweets (channel_id, author, content, message_id) VALUES (?, ?, ?, ?)');
     
-    const insertMany = db.transaction((channelId: string, tweets: { author: string, content: string }[]) => {
+    const insertMany = db.transaction((channelId: string, tweets: { author: string, content: string, message_id?: string }[]) => {
         for (const tweet of tweets) {
-            insert.run(channelId, tweet.author, tweet.content);
+            insert.run(channelId, tweet.author, tweet.content, tweet.message_id || null);
         }
     });
 
     insertMany(channelId, tweets);
+}
+
+export function getLastTweetId(channelId: string): string | undefined {
+    const result = db.prepare('SELECT message_id FROM tweets WHERE channel_id = ? AND message_id IS NOT NULL ORDER BY message_id DESC LIMIT 1').get(channelId) as { message_id: string };
+    return result ? result.message_id : undefined;
 }
 
 export function getRandomTweet(channelId: string): TweetRecord | undefined {

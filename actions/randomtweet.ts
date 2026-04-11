@@ -3,6 +3,8 @@ import path from 'path';
 import { SnowflakeUtil, EmbedBuilder } from 'discord.js';
 import * as db from '../utils/database.js';
 
+const activeSyncs = new Set<string>();
+
 // Migrate existing JSON data to SQLite if available
 function migrateJsonToDb(channelID: string) {
     const jsonPath = path.join('./data', channelID, 'tweets.json');
@@ -19,7 +21,6 @@ function migrateJsonToDb(channelID: string) {
                 console.log(`Migrated ${tweetsToSave.length} tweets for channel ${channelID} to SQLite.`);
             }
             
-            // Rename the old file to mark it as migrated
             fs.renameSync(jsonPath, jsonPath + '.migrated');
         } catch (err) {
             console.error(`Error migrating JSON for channel ${channelID}:`, err);
@@ -30,20 +31,23 @@ function migrateJsonToDb(channelID: string) {
 export async function getTweet(context, flags) {
     const channelID = context.channel.id;
 
-    // Refresh if requested
     if (flags.refresh) {
         db.clearChannelTweets(channelID);
-    } else {
-        // Attempt migration for existing data if we don't have records in DB
-        if (!db.hasTweets(channelID)) {
-            migrateJsonToDb(channelID);
-        }
+    } else if (!db.hasTweets(channelID)) {
+        migrateJsonToDb(channelID);
     }
 
     if (db.hasTweets(channelID)) {
+        // 1. Deliver result INSTANTLY
         const tweet = db.getRandomTweet(channelID);
         if (tweet) {
-            sendResponse(context, `${tweet.author}: ${tweet.content}`);
+            await sendResponse(context, `${tweet.author}: ${tweet.content}`);
+        }
+
+        // 2. Sync in BACKGROUND
+        const lastId = db.getLastTweetId(channelID);
+        if (lastId) {
+            syncNewTweets(context, channelID, lastId).catch(err => console.error("Tweet sync error:", err));
         }
     } else {
         await fetchAllTweets(context);
@@ -60,6 +64,55 @@ async function sendResponse(context, content) {
     return context.channel.send(content);
 }
 
+async function syncNewTweets(context, channelID, lastId) {
+    if (activeSyncs.has(channelID)) return;
+    activeSyncs.add(channelID);
+
+    try {
+        console.log(`[SYNC] Starting background tweet sync for channel ${channelID} after message ${lastId}...`);
+        const channel = await context.client.channels.fetch(channelID);
+        let newTweets = [];
+        let currentAfter = lastId;
+        let totalSynced = 0;
+
+        while (true) {
+            const messages = await channel.messages.fetch({ limit: 100, after: currentAfter });
+            if (messages.size === 0) break;
+
+            messages.forEach(msg => {
+                if (msg.content.includes("twitter.com") && !msg.author.bot) {
+                    newTweets.push({
+                        author: msg.author.username,
+                        content: msg.content,
+                        message_id: msg.id
+                    });
+                }
+            });
+            currentAfter = messages.firstKey();
+
+            if (newTweets.length >= 100) {
+                db.saveTweets(channelID, newTweets);
+                totalSynced += newTweets.length;
+                console.log(`[SYNC] Tweet batch saved: ${totalSynced} new tweets found so far...`);
+                newTweets = [];
+            }
+        }
+
+        if (newTweets.length > 0) {
+            db.saveTweets(channelID, newTweets);
+            totalSynced += newTweets.length;
+        }
+
+        if (totalSynced > 0) {
+            console.log(`[SYNC] Finished tweet sync for ${channelID}: +${totalSynced} new tweets.`);
+        } else {
+            console.log(`[SYNC] Tweet sync for ${channelID} complete: No new tweets found.`);
+        }
+    } finally {
+        activeSyncs.delete(channelID);
+    }
+}
+
 async function fetchAllTweets(context) {
     try {
         let channelID = context.channel.id;
@@ -71,7 +124,7 @@ async function fetchAllTweets(context) {
         const createdTimestamp = channel.createdTimestamp;
         const now = Date.now();
         const duration = now - createdTimestamp;
-        const numWorkers = 12; // INCREASED WORKERS
+        const numWorkers = 12;
         const chunkDuration = Math.floor(duration / numWorkers);
 
         let totalFound = 0;
@@ -80,18 +133,15 @@ async function fetchAllTweets(context) {
         const initialEmbed = new EmbedBuilder()
             .setColor(0x1DA1F2)
             .setTitle("🐦 Super-Tweet-Crawler Active")
-            .setDescription(`Scanning <#${channelID}> for twitter links.\n\n**Workers:** ⚙️ Starting ${numWorkers} parallel crawlers...`)
-            .setFooter({ text: "Indexing the history at maximum speed." });
+            .setDescription(`Scanning <#${channelID}> for twitter links.\n\n**Workers:** ⚙️ Starting ${numWorkers} parallel crawlers...`);
 
         const message = await sendResponse(context, { embeds: [initialEmbed] });
 
-        // PROGRESS TRACKER: Update Discord UI every 3 seconds
         const progressInterval = setInterval(async () => {
             const updateEmbed = new EmbedBuilder()
                 .setColor(0x1DA1F2)
                 .setTitle("🐦 Super-Tweet-Crawler Scanning...")
-                .setDescription(`Building a tweet index for <#${channelID}>.\n\n**Found:** 🐦 **${totalFound.toLocaleString()}** tweets\n**Active Workers:** ⚙️ ${activeWorkers}/${numWorkers}`)
-                .setFooter({ text: "Tweets are being committed to SQLite in real-time." });
+                .setDescription(`Building a tweet index for <#${channelID}>.\n\n**Found:** 🐦 **${totalFound.toLocaleString()}** tweets\n**Active Workers:** ⚙️ ${activeWorkers}/${numWorkers}`);
 
             try {
                 if (message.edit) await message.edit({ embeds: [updateEmbed] });
@@ -123,22 +173,15 @@ async function fetchAllTweets(context) {
             const successEmbed = new EmbedBuilder()
                 .setColor(0x00FF00)
                 .setTitle("✅ Super-Tweet-Crawl Complete")
-                .setDescription(`Finished indexing **${totalFound.toLocaleString()}** tweets in <#${channelID}>!\n\nDatabase is now synchronized.`);
+                .setDescription(`Finished indexing **${totalFound.toLocaleString()}** tweets in <#${channelID}>!`);
             
             if (message.edit) await message.edit({ embeds: [successEmbed] });
-            else await sendResponse(context, { embeds: [successEmbed] });
-
             await sendResponse(context, `${tweet.author}: ${tweet.content}`);
         } else {
             sendResponse(context, "I couldn't find any tweets in this channel!");
         }
     } catch (err) {
         console.error(err);
-        const errorEmbed = new EmbedBuilder()
-            .setColor(0xFF0000)
-            .setTitle("💥 Crawler Error")
-            .setDescription("A critical error occurred while scanning for tweets.");
-        sendResponse(context, { embeds: [errorEmbed] });
     }
 }
 
@@ -160,12 +203,12 @@ async function crawlAndStreamTweets(channel, beforeId, untilTimestamp, onBatchFo
             if (msg.content.includes("twitter.com") && !msg.author.bot) {
                 localBatch.push({
                     author: msg.author.username,
-                    content: msg.content
+                    content: msg.content,
+                    message_id: msg.id
                 });
             }
         }
 
-        // SAVE BATCH: every 200 tweets
         if (localBatch.length >= 200) {
             db.saveTweets(channel.id, localBatch);
             onBatchFound(localBatch.length);
