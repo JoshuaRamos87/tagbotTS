@@ -6,12 +6,13 @@ import {
     VoiceConnectionStatus,
     StreamType,
     entersState,
-    getVoiceConnection
+    getVoiceConnection,
+    AudioPlayer
 } from '@discordjs/voice';
 import { Innertube } from 'youtubei.js';
 import ytdl from 'youtube-dl-exec';
 import ffmpegPath from 'ffmpeg-static';
-import { ChatInputCommandInteraction, Message, GuildMember, ActivityType, EmbedBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, Message, GuildMember, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
 import { Readable } from 'node:stream';
 
 let yt: Innertube;
@@ -22,6 +23,9 @@ interface GuildState {
     currentResource: any | null; // AudioResource
     currentUrl: string | null;
     startTimeSeconds: number;
+    player: AudioPlayer;
+    message: Message | null;
+    collector: any | null;
 }
 const guildStates = new Map<string, GuildState>();
 
@@ -92,9 +96,12 @@ export async function skipForward(context: any, seconds: number) {
     }
 
     const playedMs = state.currentResource?.playbackDuration || 0;
-    const newOffset = state.startTimeSeconds + Math.floor(playedMs / 1000) + seconds;
+    let newOffset = state.startTimeSeconds + Math.floor(playedMs / 1000) + seconds;
 
-    await sendResponse(context, `⏩ Skipping forward ${seconds}s to ${formatTime(newOffset * 1000)}...`);
+    if (newOffset < 0) newOffset = 0;
+
+    const actionText = seconds > 0 ? `forward ${seconds}s` : `backward ${Math.abs(seconds)}s`;
+    await sendResponse(context, `⏩ Skipping ${actionText} to ${formatTime(newOffset * 1000)}...`);
     return playYouTube(state.currentUrl, context, newOffset);
 }
 
@@ -190,15 +197,18 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
 
         // Cleanup previous state for this guild
         const oldState = guildStates.get(guildId);
-        if (oldState?.interval) {
-            clearInterval(oldState.interval);
+        if (oldState) {
+            if (oldState.interval) clearInterval(oldState.interval);
+            try { oldState.player?.stop(); } catch (e) {}
+            try { oldState.collector?.stop(); } catch (e) {}
         }
 
-        // Create Initial Embed
-        const createEmbed = (current: string, total: string) => {
+        // Create Initial Embed and Buttons
+        const createEmbed = (current: string, total: string, isPaused: boolean = false) => {
+            const statusEmoji = isPaused ? "⏸️" : "▶️";
             const description = effectiveSkip > 0 
-                ? `▶️ **${current} / ${total}** (Started at ${formatTime(effectiveSkip * 1000)})`
-                : `▶️ **${current} / ${total}**`;
+                ? `${statusEmoji} **${current} / ${total}** (Started at ${formatTime(effectiveSkip * 1000)})`
+                : `${statusEmoji} **${current} / ${total}**`;
 
             return new EmbedBuilder()
                 .setColor(0xFF0000)
@@ -210,10 +220,31 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                 .setTimestamp();
         };
 
+        const createButtons = (isPaused: boolean = false) => {
+            return new ActionRowBuilder<ButtonBuilder>().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('back_30')
+                    .setLabel('Back 30s')
+                    .setEmoji('⏪')
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('play_pause')
+                    .setLabel(isPaused ? 'Resume' : 'Pause')
+                    .setEmoji(isPaused ? '▶️' : '⏸️')
+                    .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Primary),
+                new ButtonBuilder()
+                    .setCustomId('forward_30')
+                    .setLabel('Forward 30s')
+                    .setEmoji('⏩')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+        };
+
         const totalTimeStr = formatTime(durationSeconds * 1000);
         const initialEmbed = createEmbed(formatTime(effectiveSkip * 1000), totalTimeStr);
+        const initialButtons = createButtons(false);
         
-        let response = await sendResponse(context, { embeds: [initialEmbed] });
+        let response = await sendResponse(context, { embeds: [initialEmbed], components: [initialButtons] });
         
         let message: Message | null = null;
         if (response instanceof Message) {
@@ -222,20 +253,65 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             message = await context.fetchReply();
         }
 
+        // Button Interaction Collector
+        let collector: any = null;
+        if (message) {
+            collector = message.createMessageComponentCollector({
+                componentType: ComponentType.Button,
+                time: (durationSeconds + 60) * 1000 // Last as long as the video + 1m buffer
+            });
+
+            collector.on('collect', async (interaction: any) => {
+                const state = guildStates.get(guildId);
+                if (!state) {
+                    await interaction.reply({ content: "❌ No active playback state found.", ephemeral: true }).catch(() => {});
+                    return;
+                }
+
+                if (interaction.customId === 'play_pause') {
+                    if (player.state.status === AudioPlayerStatus.Playing) {
+                        player.pause();
+                        const pausedEmbed = createEmbed(formatTime(effectiveSkip * 1000 + resource.playbackDuration), totalTimeStr, true);
+                        await interaction.update({ embeds: [pausedEmbed], components: [createButtons(true)] }).catch(() => {});
+                    } else if (player.state.status === AudioPlayerStatus.Paused) {
+                        player.unpause();
+                        const playingEmbed = createEmbed(formatTime(effectiveSkip * 1000 + resource.playbackDuration), totalTimeStr, false);
+                        await interaction.update({ embeds: [playingEmbed], components: [createButtons(false)] }).catch(() => {});
+                    } else {
+                        await interaction.reply({ content: "❌ Player is not in a pausable/resumable state.", ephemeral: true }).catch(() => {});
+                    }
+                } else if (interaction.customId === 'back_30') {
+                    await interaction.deferUpdate().catch(() => {});
+                    await skipForward(context, -30);
+                } else if (interaction.customId === 'forward_30') {
+                    await interaction.deferUpdate().catch(() => {});
+                    await skipForward(context, 30);
+                }
+            });
+        }
+
         // Update Interval
         const interval = setInterval(async () => {
-            if (player.state.status === AudioPlayerStatus.Playing) {
+            const isPlaying = player.state.status === AudioPlayerStatus.Playing;
+            const isPaused = player.state.status === AudioPlayerStatus.Paused;
+
+            if (isPlaying || isPaused) {
                 const playedMs = resource.playbackDuration;
                 const currentTimeMs = (effectiveSkip * 1000) + playedMs;
                 const currentTimeStr = formatTime(currentTimeMs);
                 
-                context.client.user?.setActivity(`${currentTimeStr} / ${totalTimeStr}`, { 
-                    type: ActivityType.Listening 
-                });
+                if (isPlaying) {
+                    context.client.user?.setActivity(`${currentTimeStr} / ${totalTimeStr}`, { 
+                        type: ActivityType.Listening 
+                    });
+                }
 
                 if (message && message.editable) {
                     try {
-                        await message.edit({ embeds: [createEmbed(currentTimeStr, totalTimeStr)] });
+                        await message.edit({ 
+                            embeds: [createEmbed(currentTimeStr, totalTimeStr, isPaused)],
+                            components: [createButtons(isPaused)]
+                        });
                     } catch (e) {
                         console.error("[Embed Update Error] Likely rate limited or deleted.");
                     }
@@ -247,7 +323,10 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             interval: interval,
             currentResource: resource,
             currentUrl: cleanUrl,
-            startTimeSeconds: effectiveSkip
+            startTimeSeconds: effectiveSkip,
+            player: player,
+            message: message,
+            collector: collector
         });
 
         player.on(AudioPlayerStatus.Idle, () => {
@@ -258,7 +337,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             }
             context.client.user?.setActivity(null);
             if (message && message.editable) {
-                message.edit({ content: "Finished playing.", embeds: [] }).catch(() => {});
+                message.edit({ content: "Finished playing.", embeds: [], components: [] }).catch(() => {});
             }
         });
 
@@ -268,6 +347,9 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             if (state?.interval) {
                 clearInterval(state.interval);
                 guildStates.delete(guildId);
+            }
+            if (message && message.editable) {
+                message.edit({ content: `❌ Playback Error: ${error.message}`, components: [] }).catch(() => {});
             }
         });
 
