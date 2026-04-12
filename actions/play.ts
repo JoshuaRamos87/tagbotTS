@@ -29,6 +29,19 @@ interface GuildState {
 }
 const guildStates = new Map<string, GuildState>();
 
+const BASED_ERRORS = [
+    "Something went wrong, but we're still based.",
+    "The code is tripping but the bot is still dripping.",
+    "Error 404: Skill not found. Just kidding, the bot is fine.",
+    "The bot took a hit, but it's built different. Still standing.",
+    "A minor setback for a major comeback. Bot's still up.",
+    "Logic failed, but the vibe remains untouched."
+];
+
+function getBasedError() {
+    return BASED_ERRORS[Math.floor(Math.random() * BASED_ERRORS.length)];
+}
+
 async function getYouTube() {
     if (!yt) {
         yt = await Innertube.create({
@@ -349,12 +362,20 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                 guildStates.delete(guildId);
             }
             if (message && message.editable) {
-                message.edit({ content: `❌ Playback Error: ${error.message}`, components: [] }).catch(() => {});
+                message.edit({ 
+                    content: `❌ **${getBasedError()}**\n*(Playback Error: ${error.message})*`, 
+                    components: [] 
+                }).catch(() => {});
             }
         });
 
     } catch (error: any) {
         console.error("[Play Error]", error.message);
-        await sendResponse(context, `❌ Play Error: ${error.message}`);
+        const state = guildStates.get(guildId);
+        if (state?.interval) {
+            clearInterval(state.interval);
+            guildStates.delete(guildId);
+        }
+        await sendResponse(context, `❌ **${getBasedError()}**\n*(Technical Error: ${error.message})*`);
     }
 }

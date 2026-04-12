@@ -41,43 +41,69 @@ console.log('hello')
 
 client.login(mySecret);
 
+const BASED_ERRORS = [
+	"Something went wrong, but we're still based.",
+	"The code is tripping but the bot is still dripping.",
+	"Error 404: Skill not found. Just kidding, the bot is fine.",
+	"The bot took a hit, but it's built different. Still standing.",
+	"A minor setback for a major comeback. Bot's still up.",
+	"Logic failed, but the vibe remains untouched."
+];
+
+function getBasedError() {
+	return BASED_ERRORS[Math.floor(Math.random() * BASED_ERRORS.length)];
+}
+
+// Global Process Error Handling
+process.on('unhandledRejection', (reason, promise) => {
+	console.error('[Unhandled Rejection] at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+	console.error('[Uncaught Exception] thrown:', error);
+});
+
 client.on("ready", () => {
   console.log(`Logged in as ${client.user.tag}!`)
 });
 
 // Slash Command Handler
 client.on("interactionCreate", async interaction => {
-	if (interaction.isChatInputCommand()) {
-		const command = interaction.client.commands.get(interaction.commandName);
+	try {
+		if (interaction.isChatInputCommand()) {
+			const command = interaction.client.commands.get(interaction.commandName);
 
-		if (!command) {
-			console.error(`No command matching ${interaction.commandName} was found.`);
-			return;
-		}
-
-		try {
-			await command.execute(interaction);
-		} catch (error) {
-			console.error(error);
-			if (interaction.replied || interaction.deferred) {
-				await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-			} else {
-				await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+			if (!command) {
+				console.error(`No command matching ${interaction.commandName} was found.`);
+				return;
 			}
-		}
-	} else if (interaction.isButton()) {
-		if (interaction.customId.startsWith('random_image_reload_')) {
-			const count = parseInt(interaction.customId.split('_').pop() || '1');
-			const randomimage = await import('./actions/randomimage.js');
-			
+
 			try {
-				// We don't defer here because deliverImages will handle the response
-				// Actually, we should defer if we expect it to take time
-				await interaction.deferUpdate();
-				await randomimage.getImage(interaction, count);
+				await command.execute(interaction);
 			} catch (error) {
-				console.error("[Button Error]", error);
+				console.error(`[Command Error] /${interaction.commandName}:`, error);
+				const content = `❌ **${getBasedError()}**\n*(Check logs for technical details)*`;
+				
+				if (interaction.replied || interaction.deferred) {
+					await interaction.followUp({ content, ephemeral: false }).catch(() => {});
+				} else {
+					await interaction.reply({ content, ephemeral: false }).catch(() => {});
+				}
+			}
+		} else if (interaction.isButton()) {
+			if (interaction.customId.startsWith('random_image_reload_')) {
+				const count = parseInt(interaction.customId.split('_').pop() || '1');
+				const randomimage = await import('./actions/randomimage.js');
+				
+				try {
+					await interaction.deferUpdate().catch(() => {});
+					await randomimage.getImage(interaction, count);
+				} catch (error) {
+					console.error("[Button Error]", error);
+				}
 			}
 		}
+	} catch (fatalError) {
+		console.error("[FATAL INTERACTION ERROR]", fatalError);
 	}
 });
