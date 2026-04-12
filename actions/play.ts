@@ -246,6 +246,11 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                     .setEmoji(isPaused ? '▶️' : '⏸️')
                     .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Primary),
                 new ButtonBuilder()
+                    .setCustomId('stop_playback')
+                    .setLabel('Stop')
+                    .setEmoji('⏹️')
+                    .setStyle(ButtonStyle.Danger),
+                new ButtonBuilder()
                     .setCustomId('forward_30')
                     .setLabel('Forward 30s')
                     .setEmoji('⏩')
@@ -293,6 +298,9 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                     } else {
                         await interaction.reply({ content: "❌ Player is not in a pausable/resumable state.", ephemeral: true }).catch(() => {});
                     }
+                } else if (interaction.customId === 'stop_playback') {
+                    await interaction.deferUpdate().catch(() => {});
+                    await stopPlayback(context);
                 } else if (interaction.customId === 'back_30') {
                     await interaction.deferUpdate().catch(() => {});
                     await skipForward(context, -30);
