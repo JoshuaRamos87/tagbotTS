@@ -5,5 +5,5 @@ export const data = new SlashCommandBuilder()
     .setDescription('Shows the current version of the bot');
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-    await interaction.reply('Version: 1.3.5');
+    await interaction.reply('Version: 1.4.0');
 }
