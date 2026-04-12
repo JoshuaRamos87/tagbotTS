@@ -1,7 +1,7 @@
 # Technical Specifications: tagbotTS
 
 ## Project Overview
-**tagbotTS** is a multi-functional Discord bot written in TypeScript. It provides a variety of utility and entertainment features, ranging from dictionary lookups and language translation to anime/image source discovery, AI-powered interactions, and voice channel audio streaming.
+**tagbotTS** is a multi-functional Discord bot written in TypeScript. It provides a variety of utility and entertainment features, ranging from dictionary lookups and language translation to anime/image source discovery, and voice channel audio streaming.
 
 ## Core Technology Stack
 - **Language:** TypeScript / Node.js
@@ -12,7 +12,6 @@
   - **Anime Search:** [trace.moe API](https://soruly.github.io/trace.moe-api/)
   - **Image Sauce:** [iqdb-client](https://www.npmjs.com/package/iqdb-client)
   - **Translation:** [@iamtraction/google-translate](https://www.npmjs.com/package/@iamtraction/google-translate)
-  - **AI Integration:** Local [Ollama](https://ollama.com/) instance (running `dolphin-mixtral:8x7b`)
   - **Audio Streaming:** [YouTube.js (Innertube)](https://github.com/LuanRT/YouTube.js) and [@discordjs/voice](https://discord.js.org/docs/packages/voice)
 
 ## Architecture
@@ -43,10 +42,8 @@ The project follows a modular "action-based" architecture:
 - `/randomimage` (or `/ri`): Fetches a random image from the channel's history (cached in SQLite).
 - `/randomtweet` (or `/rtw`): Fetches a random Twitter/X link from the channel's history.
 
-### 5. AI Interaction (Ollama)
-- `/dolphin <prompt>`: Sends a prompt to a local Ollama instance.
-
 ## Technical Implementation Details
 - **Build Process:** Uses `npm run build-win` to perform a clean `tsc` compilation into the `build/` directory.
 - **Command Deployment:** Uses `npm run deploy` to register Slash Commands with the Discord API.
 - **Environment Configuration:** Requires a `.env` file with `TOKEN` and `CLIENT_ID`.
+
