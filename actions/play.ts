@@ -12,7 +12,7 @@ import {
 import { Innertube } from 'youtubei.js';
 import ytdl from 'youtube-dl-exec';
 import ffmpegPath from 'ffmpeg-static';
-import { ChatInputCommandInteraction, Message, GuildMember, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
+import { ChatInputCommandInteraction, Message, GuildMember, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { Readable } from 'node:stream';
 
 let yt: Innertube;
@@ -118,6 +118,19 @@ export async function skipForward(context: any, seconds: number) {
     return playYouTube(state.currentUrl, context, newOffset);
 }
 
+export async function seekTo(context: any, targetSeconds: number) {
+    const guildId = context.guild?.id;
+    if (!guildId) return;
+    
+    const state = guildStates.get(guildId);
+    if (!state || !state.currentUrl) {
+        return sendResponse(context, "❌ Nothing is currently playing.");
+    }
+
+    await sendResponse(context, `⏩ Seeking to ${formatTime(targetSeconds * 1000)}...`);
+    return playYouTube(state.currentUrl, context, targetSeconds);
+}
+
 export async function playYouTube(url: string, context: any, skipSeconds: number = 0) {
     const input = url?.trim();
     if (!input || input === 'undefined') {
@@ -160,17 +173,118 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
         
         let info;
         try {
-            info = await youtube.getBasicInfo(videoId);
+            info = await youtube.getInfo(videoId);
         } catch (e) {
             const search = await youtube.search(input);
             const firstVideo = search.videos?.[0];
             if (!firstVideo || !('id' in firstVideo)) throw new Error("Video not found.");
-            info = await youtube.getBasicInfo((firstVideo as any).id);
+            info = await youtube.getInfo((firstVideo as any).id);
         }
 
         const title = info.basic_info.title || "YouTube Audio";
         const durationSeconds = info.basic_info.duration || 0;
         const thumbnail = info.basic_info.thumbnail?.[0]?.url;
+
+        // Extract Chapters (Ultimate Deep Search Strategy)
+        const chapters: { title: string, time_seconds: number }[] = [];
+        
+        const addChapter = (titleStr: string, startMs: number) => {
+            const sec = Math.floor(startMs / 1000);
+            if (titleStr && chapters.every(c => c.time_seconds !== sec)) {
+                chapters.push({ title: titleStr.slice(0, 100), time_seconds: sec });
+            }
+        };
+
+        try {
+            const seen = new Set();
+            const deepSearchChapters = (obj: any) => {
+                if (!obj || typeof obj !== 'object') return;
+                if (seen.has(obj)) return;
+                seen.add(obj);
+
+                const titleVal = obj.title?.simpleText || obj.title?.text || obj.title?.runs?.[0]?.text || (typeof obj.title === 'string' ? obj.title : null);
+                const timeMs = obj.timeRangeStartMillis !== undefined ? obj.timeRangeStartMillis : (obj.start_time_ms !== undefined ? obj.start_time_ms : obj.startTimeMs);
+
+                // Detect chapter markers from raw or parsed properties
+                if (titleVal && timeMs !== undefined && !isNaN(Number(timeMs))) {
+                    const isChapterType = obj.type === 'MacroMarkersListItem' || obj.type === 'Chapter' || obj.type === 'Marker';
+                    const hasUniqueChapterKeys = obj.timeRangeStartMillis !== undefined || obj.timeDescription !== undefined || obj.start_time_ms !== undefined;
+                    
+                    if (isChapterType || hasUniqueChapterKeys) {
+                        addChapter(titleVal, Number(timeMs));
+                    }
+                }
+
+                // Recursively search children
+                for (const key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                        // Skip massive unhelpful objects to prevent stack overflow
+                        if (key === 'client' || key === 'env' || key === 'session') continue;
+                        deepSearchChapters(obj[key]);
+                    }
+                }
+            };
+            deepSearchChapters(info);
+        } catch (e) {
+            console.error("[Chapter Deep Search Error]", e.message);
+        }
+
+        // Description Parser Fallback (If official metadata is missing)
+        if (chapters.length === 0) {
+            try {
+                let description = "";
+                if (info.basic_info?.short_description) description = info.basic_info.short_description.toString();
+                if (!description && info.basic_info?.description) description = info.basic_info.description.toString();
+                
+                // If standard access fails or returns an object representation, do a deep text scrape of basic_info
+                if (!description || description.includes("[object Object]")) {
+                    description = "";
+                    const seenDesc = new Set();
+                    const findText = (obj: any) => {
+                        if (!obj || typeof obj !== 'object') return;
+                        if (seenDesc.has(obj)) return;
+                        seenDesc.add(obj);
+                        if (typeof obj.text === 'string' && obj.text.length > 20) description += obj.text + "\n";
+                        if (typeof obj.simpleText === 'string' && obj.simpleText.length > 20) description += obj.simpleText + "\n";
+                        for (const key in obj) {
+                            if (Object.prototype.hasOwnProperty.call(obj, key)) findText(obj[key]);
+                        }
+                    };
+                    findText(info.basic_info);
+                }
+
+                const lines = description.split('\n');
+                const timestampRegex = /([\[\(])?(\d{1,2}:)?(\d{1,2}:\d{2})([\]\)])?/;
+                
+                lines.forEach(line => {
+                    const match = line.match(timestampRegex);
+                    if (match) {
+                        const fullTimestamp = match[0];
+                        const cleanTimestamp = match[2] ? match[2] + match[3] : match[3];
+                        
+                        const parts = cleanTimestamp.split(':').reverse();
+                        let sec = 0;
+                        if (parts[0]) sec += parseInt(parts[0]);
+                        if (parts[1]) sec += parseInt(parts[1]) * 60;
+                        if (parts[2]) sec += parseInt(parts[2]) * 3600;
+                        
+                        let chapterTitle = line.replace(fullTimestamp, '').trim();
+                        chapterTitle = chapterTitle.replace(/^[:\-\s\d.]+/, '').trim(); 
+                        chapterTitle = chapterTitle.replace(/[:\-\s]+$/, '').trim();
+                        
+                        if (chapterTitle) addChapter(chapterTitle, sec * 1000);
+                    }
+                });
+            } catch (descErr) {
+                console.error("[Description Parse Error]", descErr.message);
+            }
+        }
+
+        // Final sort and validation
+        chapters.sort((a, b) => a.time_seconds - b.time_seconds);
+        if (chapters.length > 0) {
+            console.log(`[Chapters] Successfully extracted ${chapters.length} chapters for "${title}"`);
+        }
 
         // Apply skip if specified via downloader (Confirmed reliable method in GEMINI.md)
         // We use ffmpeg_i:-ss for FAST seeking (input seek) to avoid silence/timeouts
@@ -258,11 +372,33 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             );
         };
 
+        const createChapterMenu = () => {
+            if (chapters.length === 0) return null;
+            
+            const menu = new StringSelectMenuBuilder()
+                .setCustomId('chapter_select')
+                .setPlaceholder('Jump to Chapter...')
+                .addOptions(
+                    chapters.slice(0, 25).map(c => 
+                        new StringSelectMenuOptionBuilder()
+                            .setLabel(c.title.slice(0, 100))
+                            .setDescription(formatTime(c.time_seconds * 1000))
+                            .setValue(c.time_seconds.toString())
+                    )
+                );
+
+            return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+        };
+
         const totalTimeStr = formatTime(durationSeconds * 1000);
         const initialEmbed = createEmbed(formatTime(effectiveSkip * 1000), totalTimeStr);
         const initialButtons = createButtons(false);
+        const chapterMenu = createChapterMenu();
         
-        let response = await sendResponse(context, { embeds: [initialEmbed], components: [initialButtons] });
+        const components: any[] = [initialButtons];
+        if (chapterMenu) components.push(chapterMenu);
+
+        let response = await sendResponse(context, { embeds: [initialEmbed], components });
         
         let message: Message | null = null;
         if (response instanceof Message) {
@@ -271,11 +407,10 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             message = await context.fetchReply();
         }
 
-        // Button Interaction Collector
+        // Interaction Collector
         let collector: any = null;
         if (message) {
             collector = message.createMessageComponentCollector({
-                componentType: ComponentType.Button,
                 time: (durationSeconds + 60) * 1000 // Last as long as the video + 1m buffer
             });
 
@@ -286,27 +421,35 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                     return;
                 }
 
-                if (interaction.customId === 'play_pause') {
-                    if (player.state.status === AudioPlayerStatus.Playing) {
-                        player.pause();
-                        const pausedEmbed = createEmbed(formatTime(effectiveSkip * 1000 + resource.playbackDuration), totalTimeStr, true);
-                        await interaction.update({ embeds: [pausedEmbed], components: [createButtons(true)] }).catch(() => {});
-                    } else if (player.state.status === AudioPlayerStatus.Paused) {
-                        player.unpause();
-                        const playingEmbed = createEmbed(formatTime(effectiveSkip * 1000 + resource.playbackDuration), totalTimeStr, false);
-                        await interaction.update({ embeds: [playingEmbed], components: [createButtons(false)] }).catch(() => {});
-                    } else {
-                        await interaction.reply({ content: "❌ Player is not in a pausable/resumable state.", ephemeral: true }).catch(() => {});
+                if (interaction.isButton()) {
+                    if (interaction.customId === 'play_pause') {
+                        if (player.state.status === AudioPlayerStatus.Playing) {
+                            player.pause();
+                            const pausedEmbed = createEmbed(formatTime(effectiveSkip * 1000 + resource.playbackDuration), totalTimeStr, true);
+                            await interaction.update({ embeds: [pausedEmbed], components }).catch(() => {});
+                        } else if (player.state.status === AudioPlayerStatus.Paused) {
+                            player.unpause();
+                            const playingEmbed = createEmbed(formatTime(effectiveSkip * 1000 + resource.playbackDuration), totalTimeStr, false);
+                            await interaction.update({ embeds: [playingEmbed], components }).catch(() => {});
+                        } else {
+                            await interaction.reply({ content: "❌ Player is not in a pausable/resumable state.", ephemeral: true }).catch(() => {});
+                        }
+                    } else if (interaction.customId === 'stop_playback') {
+                        await interaction.deferUpdate().catch(() => {});
+                        await stopPlayback(context);
+                    } else if (interaction.customId === 'back_30') {
+                        await interaction.deferUpdate().catch(() => {});
+                        await skipForward(context, -30);
+                    } else if (interaction.customId === 'forward_30') {
+                        await interaction.deferUpdate().catch(() => {});
+                        await skipForward(context, 30);
                     }
-                } else if (interaction.customId === 'stop_playback') {
-                    await interaction.deferUpdate().catch(() => {});
-                    await stopPlayback(context);
-                } else if (interaction.customId === 'back_30') {
-                    await interaction.deferUpdate().catch(() => {});
-                    await skipForward(context, -30);
-                } else if (interaction.customId === 'forward_30') {
-                    await interaction.deferUpdate().catch(() => {});
-                    await skipForward(context, 30);
+                } else if (interaction.isStringSelectMenu()) {
+                    if (interaction.customId === 'chapter_select') {
+                        await interaction.deferUpdate().catch(() => {});
+                        const targetSeconds = parseInt(interaction.values[0]);
+                        await seekTo(context, targetSeconds);
+                    }
                 }
             });
         }
@@ -329,9 +472,12 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
 
                 if (message && message.editable) {
                     try {
+                        const currentComponents: any[] = [createButtons(isPaused)];
+                        if (chapterMenu) currentComponents.push(chapterMenu);
+
                         await message.edit({ 
                             embeds: [createEmbed(currentTimeStr, totalTimeStr, isPaused)],
-                            components: [createButtons(isPaused)]
+                            components: currentComponents
                         });
                     } catch (e) {
                         console.error("[Embed Update Error] Likely rate limited or deleted.");
