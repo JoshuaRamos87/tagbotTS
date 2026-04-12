@@ -7,10 +7,15 @@ export const data = new SlashCommandBuilder()
     .addStringOption(option => 
         option.setName('url')
             .setDescription('The YouTube link to play')
-            .setRequired(true));
+            .setRequired(true))
+    .addIntegerOption(option =>
+        option.setName('skip')
+            .setDescription('Seconds to skip forward into the video')
+            .setRequired(false));
 
 export async function execute(interaction: ChatInputCommandInteraction) {
     const url = interaction.options.getString('url', true);
+    const skip = interaction.options.getInteger('skip') || 0;
     await interaction.deferReply(); 
-    await playYouTube(url, interaction);
+    await playYouTube(url, interaction, skip);
 }

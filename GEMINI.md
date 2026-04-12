@@ -28,7 +28,7 @@ YouTube has aggressive bot detection that blocks standard Node.js libraries. We 
 
 ## 6. Session Persistence & Memory
 - **Mandate:** Agents MUST update this file at the end of a session if major technical hurdles were resolved or if new architectural patterns were established.
-- **Resolved Roadblock (Seeking):** To reliably seek in YouTube audio via `yt-dlp` when streaming to `stdout`, use `downloader: 'ffmpeg'` and `downloaderArgs: 'ffmpeg:-ss <seconds>'`. Other methods (like post-processor args) are inconsistent with piped output.
+- **Resolved Roadblock (Seeking):** To reliably seek in YouTube audio via `yt-dlp` when streaming to `stdout`, use `downloader: 'ffmpeg'` and `downloaderArgs: 'ffmpeg_i:-ss <seconds>'`. Using `ffmpeg_i` ensures an "input seek", which is significantly faster and prevents silence/timeouts compared to a standard output seek.
 
 ## 7. Environment
 - Required `.env` variables: `TOKEN`, `CLIENT_ID`.
