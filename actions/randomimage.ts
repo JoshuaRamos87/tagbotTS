@@ -104,6 +104,14 @@ async function deliverImages(context, channelID, images) {
                 .setURL(jumpUrl);
             row.addComponents(jumpButton);
         }
+
+        const reloadButton = new ButtonBuilder()
+            .setCustomId(`random_image_reload_${images.length}`)
+            .setLabel('Reload')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('🔄');
+        
+        row.addComponents(reloadButton);
         
         const payload: any = { content: response };
         if (row.components.length > 0) payload.components = [row];
@@ -125,13 +133,21 @@ async function deliverImages(context, channelID, images) {
                     .setStyle(ButtonStyle.Link)
                     .setURL(jumpUrl);
                 
-                if (row.components.length < 5) {
+                if (row.components.length < 4) { // Save space for reload
                     row.addComponents(jumpButton);
                 }
             }
             
             return embed;
         });
+
+        const reloadButton = new ButtonBuilder()
+            .setCustomId(`random_image_reload_${images.length}`)
+            .setLabel('Reload')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('🔄');
+
+        row.addComponents(reloadButton);
 
         const payload: any = { embeds };
         if (row.components.length > 0) payload.components = [row];
