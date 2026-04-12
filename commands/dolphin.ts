@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import * as dolphin from '../actions/dolphin.js';
 
 export const data = new SlashCommandBuilder()
@@ -9,8 +9,8 @@ export const data = new SlashCommandBuilder()
             .setDescription('The question you want to ask')
             .setRequired(true));
 
-export async function execute(interaction) {
-    const prompt = interaction.options.getString('prompt');
+export async function execute(interaction: ChatInputCommandInteraction) {
+    const prompt = interaction.options.getString('prompt', true);
     await interaction.deferReply();
     dolphin.askDolphin(interaction, prompt);
 }

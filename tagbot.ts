@@ -64,7 +64,7 @@ process.on('uncaughtException', (error) => {
 });
 
 client.on("clientReady", () => {
-  console.log(`Logged in as ${client.user.tag}!`)
+  console.log(`Logged in as ${client.user?.tag}!`)
 });
 
 // Slash Command Handler

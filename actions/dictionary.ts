@@ -1,7 +1,8 @@
 import http from "https";
+import { BotContext } from '../utils/types.js';
+import { sendResponse } from '../utils/response.js';
 
-export function findWord(word, context, wordAction)
-{
+export function findWord(word: string, context: BotContext, wordAction: 'def' | 'syn') {
     let options = {
         "method": "GET",
         "hostname": "api.dictionaryapi.dev",
@@ -9,7 +10,7 @@ export function findWord(word, context, wordAction)
     };
     options["path"] += word
     let req = http.request(options, function (res) {
-    let chunks = [];
+    let chunks: Buffer[] = [];
     
     res.on("data", function (chunk) {
         chunks.push(chunk);
@@ -37,17 +38,7 @@ export function findWord(word, context, wordAction)
     req.end();
 }
 
-async function sendResponse(context, content) {
-    if (context.reply) {
-        if (context.deferred || context.replied) {
-            return context.followUp(content);
-        }
-        return context.reply(content);
-    }
-    return context.channel.send(content);
-}
-
-function displayDef(word, jsonObject, context)
+function displayDef(word: string, jsonObject: any, context: BotContext)
 {
     let str = `**Word: ${word.replace(/%20/g, ' ').trim()}**\n\n`
     for(let l = 0; l < Object.keys(jsonObject).length; l++)
@@ -62,7 +53,7 @@ function displayDef(word, jsonObject, context)
     sendResponse(context, str);
 }
 
-function displaySyn(word, jsonObject, context)
+function displaySyn(word: string, jsonObject: any, context: BotContext)
 {
     if(jsonObject["title"] === "No Definitions Found")
     {
@@ -71,7 +62,7 @@ function displaySyn(word, jsonObject, context)
     }
 
     const cleanedWord = word.replace(/%20/g, ' ').trim();
-    let synonyms = new Set();
+    let synonyms = new Set<string>();
 
     for(let l = 0; l < Object.keys(jsonObject).length; l++)
     {
@@ -82,7 +73,7 @@ function displaySyn(word, jsonObject, context)
             
             // Collect synonyms from meaning level
             if (meaning["synonyms"]) {
-                meaning["synonyms"].forEach(s => synonyms.add(s));
+                meaning["synonyms"].forEach((s: string) => synonyms.add(s));
             }
 
             // Collect synonyms from definition level
@@ -90,7 +81,7 @@ function displaySyn(word, jsonObject, context)
             {
                 const definition = meaning["definitions"][j];
                 if (definition["synonyms"]) {
-                    definition["synonyms"].forEach(s => synonyms.add(s));
+                    definition["synonyms"].forEach((s: string) => synonyms.add(s));
                 }
             }
         }

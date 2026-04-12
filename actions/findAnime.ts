@@ -1,7 +1,8 @@
 import http from "https";
+import { BotContext } from '../utils/types.js';
+import { sendResponse } from '../utils/response.js';
 
-export function findAnime(URL,flags,context)
-{
+export function findAnime(URL: string, flags: any, context: BotContext) {
     let options = {
         "method": "GET",
         "hostname": "api.trace.moe",
@@ -11,7 +12,7 @@ export function findAnime(URL,flags,context)
     options["path"] += URL
 
     let req = http.request(options, function (res) {
-    let chunks = [];
+    let chunks: Buffer[] = [];
 
     res.on("data", function (chunk) {
         chunks.push(chunk);
@@ -30,17 +31,7 @@ export function findAnime(URL,flags,context)
     req.end();
 }
 
-async function sendResponse(context, content) {
-    if (context.reply) {
-        if (context.deferred || context.replied) {
-            return context.followUp(content);
-        }
-        return context.reply(content);
-    }
-    return context.channel.send(content);
-}
-
-function displayAnime(jsonObject,context,flags)
+function displayAnime(jsonObject: any, context: BotContext, flags: any)
 {
     let length = flags["-l"] || flags["limit"];
     if(length === undefined || Number.isNaN(length))

@@ -1,8 +1,10 @@
+// @ts-ignore
 import { searchPic } from "iqdb-client";
+import { BotContext } from '../utils/types.js';
+import { sendResponse } from '../utils/response.js';
 
-export async function findSauce(context,URL,flags)
-{
-    let result;
+export async function findSauce(context: BotContext, URL: string, flags: any) {
+    let result: any;
     sendResponse(context, "Loading results...")
     if(flags["-g"] || flags["gelbooru"])
     {
@@ -21,17 +23,7 @@ export async function findSauce(context,URL,flags)
     }
 }
 
-async function sendResponse(context, content) {
-    if (context.reply) {
-        if (context.deferred || context.replied) {
-            return context.followUp(content);
-        }
-        return context.reply(content);
-    }
-    return context.channel.send(content);
-}
-
-function displayImageSauce(context,jsonObject)
+function displayImageSauce(context: BotContext, jsonObject: any)
 {
     let url = "";
     if(jsonObject[1]["sourceUrl"].includes("https://"))

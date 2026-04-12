@@ -1,16 +1,8 @@
 import translate from '@iamtraction/google-translate';
+import { BotContext } from '../utils/types.js';
+import { sendResponse } from '../utils/response.js';
 
-async function sendResponse(context, content) {
-    if (context.reply) {
-        if (context.deferred || context.replied) {
-            return context.followUp(content);
-        }
-        return context.reply(content);
-    }
-    return context.channel.send(content);
-}
-
-export default function (context, lang, text)
+export default function (context: BotContext, lang: string, text: string)
 {
     translate(text, { to: lang }).then(res => {
         sendResponse(context, res.text);

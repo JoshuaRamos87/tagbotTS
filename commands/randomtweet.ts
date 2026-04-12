@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import * as randomtweet from '../actions/randomtweet.js';
 
 export const data = new SlashCommandBuilder()
@@ -10,7 +10,7 @@ export const data = new SlashCommandBuilder()
             .setMinValue(1)
             .setMaxValue(4));
 
-export async function execute(interaction) {
+export async function execute(interaction: ChatInputCommandInteraction) {
     const count = interaction.options.getInteger('count') || 1;
     console.log(`Command: randomtweet | Channel: ${interaction.channelId} | Count: ${count}`);
     await interaction.deferReply();

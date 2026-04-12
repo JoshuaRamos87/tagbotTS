@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import translate from '../actions/translate.js';
 
 export const data = new SlashCommandBuilder()
@@ -13,9 +13,9 @@ export const data = new SlashCommandBuilder()
             .setDescription('The text to translate')
             .setRequired(true));
 
-export async function execute(interaction) {
-    const lang = interaction.options.getString('language');
-    const text = interaction.options.getString('text');
+export async function execute(interaction: ChatInputCommandInteraction) {
+    const lang = interaction.options.getString('language', true);
+    const text = interaction.options.getString('text', true);
     await interaction.deferReply();
     translate(interaction, lang, text);
 }

@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import * as fa from '../actions/findAnime.js';
 
 export const data = new SlashCommandBuilder()
@@ -18,8 +18,8 @@ export const data = new SlashCommandBuilder()
         option.setName('limit')
             .setDescription('Number of results to show'));
 
-export async function execute(interaction) {
-    const url = interaction.options.getString('url');
+export async function execute(interaction: ChatInputCommandInteraction) {
+    const url = interaction.options.getString('url', true);
     const flags = {
         image: interaction.options.getBoolean('image'),
         video: interaction.options.getBoolean('video'),

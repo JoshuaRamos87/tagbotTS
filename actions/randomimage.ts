@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, TextBasedChannel, Message } from 'discord.js';
 import * as db from '../utils/database.js';
+import { BotContext } from '../utils/types.js';
+import { sendResponse as commonSendResponse } from '../utils/response.js';
 
 // Track active syncs to avoid overlapping
 const activeSyncs = new Set<string>();
@@ -35,11 +37,12 @@ function migrateJsonToDb(channelID: string) {
     }
 }
 
-export async function getImage(context, count = 1) {
+export async function getImage(context: BotContext, count = 1) {
+    if (!context.channel) return;
     let channelID = context.channel.id;
 
     if (context.channel.isThread()) {
-        channelID = context.channel.parentId;
+        channelID = context.channel.parentId as string;
     }
 
     if (!db.hasImages(channelID)) {
@@ -55,14 +58,14 @@ export async function getImage(context, count = 1) {
 
         const lastId = db.getLastImageId(channelID);
         if (lastId) {
-            syncNewImages(context, channelID, lastId).catch(err => console.error("Background sync error:", err.message));
+            syncNewImages(context, channelID, lastId).catch((err: any) => console.error("Background sync error:", err.message));
         }
     } else {
         await fetchAllImages(context, channelID, count);
     }
 }
 
-async function refreshImageUrl(context, channelID, img) {
+async function refreshImageUrl(context: BotContext, channelID: string, img: db.ImageRecord) {
     if (!img.message_id) return img;
 
     try {
@@ -71,7 +74,7 @@ async function refreshImageUrl(context, channelID, img) {
         if (expiryHex) {
             const expiryTs = parseInt(expiryHex, 16) * 1000;
             if (expiryTs - Date.now() < 3600000) {
-                const channel = await context.client.channels.fetch(channelID);
+                const channel = await context.client.channels.fetch(channelID) as TextBasedChannel;
                 const message = await channel.messages.fetch(img.message_id);
                 
                 const originalBase = img.url.split('?')[0];
@@ -83,13 +86,13 @@ async function refreshImageUrl(context, channelID, img) {
                 }
             }
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error(`Failed to refresh URL for message ${img.message_id}:`, err.message);
     }
     return img;
 }
 
-async function deliverImages(context, channelID, images) {
+async function deliverImages(context: BotContext, channelID: string, images: db.ImageRecord[]) {
     const row = new ActionRowBuilder<ButtonBuilder>();
 
     if (images.length === 1) {
@@ -156,36 +159,38 @@ async function deliverImages(context, channelID, images) {
     }
 }
 
-async function sendResponse(context, content) {
-    const isExpired = context.createdTimestamp && (Date.now() - context.createdTimestamp > 14 * 60 * 1000);
+async function sendResponse(context: BotContext, content: any) {
+    const createdTimestamp = (context as any).createdTimestamp;
+    const isExpired = createdTimestamp && (Date.now() - createdTimestamp > 14 * 60 * 1000);
 
-    if (context.reply && !isExpired) {
+    if ('reply' in context && !isExpired) {
         try {
-            if (context.deferred && !context.replied) {
-                return await context.editReply(content);
+            const interaction = context as any;
+            if (interaction.deferred && !interaction.replied) {
+                return await interaction.editReply(content);
             }
-            if (context.replied || context.deferred) {
-                return await context.followUp(content);
+            if (interaction.replied || interaction.deferred) {
+                return await interaction.followUp(content);
             }
-            return await context.reply(content);
-        } catch (err) {
+            return await interaction.reply(content);
+        } catch (err: any) {
             console.error("Interaction response failed, falling back to channel send:", err.message);
         }
     }
     
     if (context.channel) {
-        return await context.channel.send(content);
+        return await (context.channel as any).send(content);
     }
 }
 
-async function syncNewImages(context, channelID, lastId) {
+async function syncNewImages(context: BotContext, channelID: string, lastId: string) {
     if (activeSyncs.has(channelID)) return;
     activeSyncs.add(channelID);
 
     try {
         console.log(`[SYNC] Starting background image sync for channel ${channelID} after message ${lastId}...`);
-        const channel = await context.client.channels.fetch(channelID);
-        let newImages = [];
+        const channel = await context.client.channels.fetch(channelID) as TextBasedChannel;
+        let newImages: { author: string, url: string, message_id: string }[] = [];
         let currentAfter = lastId;
         let totalSynced = 0;
 
@@ -206,7 +211,7 @@ async function syncNewImages(context, channelID, lastId) {
                     });
                 }
             });
-            currentAfter = messages.lastKey(); 
+            currentAfter = messages.lastKey() as string; 
 
             if (newImages.length >= 100) {
                 const inserted = db.saveImages(channelID, newImages);
@@ -226,7 +231,7 @@ async function syncNewImages(context, channelID, lastId) {
         } else {
             console.log(`[SYNC] Image sync for ${channelID} complete: No new unique images found.`);
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error(`[SYNC] Image sync error for ${channelID}:`, err.message);
     } finally {
         console.log(`[SYNC] Background process ended for channel ${channelID}.`);
@@ -234,13 +239,13 @@ async function syncNewImages(context, channelID, lastId) {
     }
 }
 
-async function fetchAllImages(context, channelID, initialCount = 1) {
+async function fetchAllImages(context: BotContext, channelID: string, initialCount = 1) {
     try {
         let client = context.client;
         const channel = await client.channels.fetch(channelID);
-        if (!channel.isTextBased()) return;
+        if (!channel || !channel.isTextBased() || !('createdTimestamp' in channel)) return;
 
-        const createdTimestamp = channel.createdTimestamp;
+        const createdTimestamp = channel.createdTimestamp as number;
         const now = Date.now();
         const duration = now - createdTimestamp;
         const numWorkers = 12;
@@ -254,7 +259,8 @@ async function fetchAllImages(context, channelID, initialCount = 1) {
             .setTitle("🚀 Super-Crawler Initialized")
             .setDescription(`Building a massive index for <#${channelID}>.\n\n**Workers:** ⚙️ Starting ${numWorkers} parallel crawlers...`);
 
-        const message = await sendResponse(context, { embeds: [initialEmbed] });
+        const response = await sendResponse(context, { embeds: [initialEmbed] });
+        const message = response instanceof Message ? response : null;
 
         const progressInterval = setInterval(async () => {
             const updateEmbed = new EmbedBuilder()
@@ -275,7 +281,7 @@ async function fetchAllImages(context, channelID, initialCount = 1) {
             
             workerPromises.push((async () => {
                 try {
-                    await crawlAndStreamImages(channel, endId, segmentStart, (count) => {
+                    await crawlAndStreamImages(channel as TextBasedChannel, endId, segmentStart, (count: number) => {
                         totalSaved += count;
                     });
                 } finally {
@@ -307,9 +313,9 @@ async function fetchAllImages(context, channelID, initialCount = 1) {
     }
 }
 
-async function crawlAndStreamImages(channel, beforeId, untilTimestamp, onBatchSaved) {
+async function crawlAndStreamImages(channel: TextBasedChannel, beforeId: string, untilTimestamp: number, onBatchSaved: (count: number) => void) {
     let currentBefore = beforeId;
-    let localBatch = [];
+    let localBatch: { author: string, url: string, message_id: string }[] = [];
 
     while (true) {
         const messages = await channel.messages.fetch({ limit: 100, before: currentBefore });
@@ -342,7 +348,7 @@ async function crawlAndStreamImages(channel, beforeId, untilTimestamp, onBatchSa
         }
 
         if (reachedBoundary) break;
-        currentBefore = messages.lastKey();
+        currentBefore = messages.lastKey() as string;
     }
 
     if (localBatch.length > 0) {

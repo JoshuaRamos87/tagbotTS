@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, TextBasedChannel, Message } from 'discord.js';
 import * as db from '../utils/database.js';
+import { BotContext } from '../utils/types.js';
 
 const activeSyncs = new Set<string>();
 
@@ -28,7 +29,8 @@ function migrateJsonToDb(channelID: string) {
     }
 }
 
-export async function getTweet(context, count = 1) {
+export async function getTweet(context: BotContext, count = 1) {
+    if (!context.channel) return;
     const channelID = context.channel.id;
 
     if (!db.hasTweets(channelID)) {
@@ -44,14 +46,14 @@ export async function getTweet(context, count = 1) {
 
         const lastId = db.getLastTweetId(channelID);
         if (lastId) {
-            syncNewTweets(context, channelID, lastId).catch(err => console.error("Tweet sync error:", err.message));
+            syncNewTweets(context, channelID, lastId).catch((err: any) => console.error("Tweet sync error:", err.message));
         }
     } else {
         await fetchAllTweets(context, count);
     }
 }
 
-async function refreshTweetContent(context, channelID, tweet) {
+async function refreshTweetContent(context: BotContext, channelID: string, tweet: db.TweetRecord) {
     if (!tweet.message_id || !tweet.content.includes("cdn.discordapp.com")) return tweet;
 
     try {
@@ -63,7 +65,7 @@ async function refreshTweetContent(context, channelID, tweet) {
                 if (expiryHex) {
                     const expiryTs = parseInt(expiryHex, 16) * 1000;
                     if (expiryTs - Date.now() < 3600000) {
-                        const channel = await context.client.channels.fetch(channelID);
+                        const channel = await context.client.channels.fetch(channelID) as TextBasedChannel;
                         const message = await channel.messages.fetch(tweet.message_id);
                         db.updateTweetContent(tweet.id, message.content);
                         return { ...tweet, content: message.content };
@@ -71,13 +73,13 @@ async function refreshTweetContent(context, channelID, tweet) {
                 }
             }
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error(`Failed to refresh tweet message ${tweet.message_id}:`, err.message);
     }
     return tweet;
 }
 
-async function deliverTweets(context, channelID, tweets) {
+async function deliverTweets(context: BotContext, channelID: string, tweets: db.TweetRecord[]) {
     const row = new ActionRowBuilder<ButtonBuilder>();
 
     if (tweets.length === 1) {
@@ -126,36 +128,38 @@ async function deliverTweets(context, channelID, tweets) {
     }
 }
 
-async function sendResponse(context, content) {
-    const isExpired = context.createdTimestamp && (Date.now() - context.createdTimestamp > 14 * 60 * 1000);
+async function sendResponse(context: BotContext, content: any) {
+    const createdTimestamp = (context as any).createdTimestamp;
+    const isExpired = createdTimestamp && (Date.now() - createdTimestamp > 14 * 60 * 1000);
 
-    if (context.reply && !isExpired) {
+    if ('reply' in context && !isExpired) {
         try {
-            if (context.deferred && !context.replied) {
-                return await context.editReply(content);
+            const interaction = context as any;
+            if (interaction.deferred && !interaction.replied) {
+                return await interaction.editReply(content);
             }
-            if (context.replied || context.deferred) {
-                return await context.followUp(content);
+            if (interaction.replied || interaction.deferred) {
+                return await interaction.followUp(content);
             }
-            return await context.reply(content);
-        } catch (err) {
+            return await interaction.reply(content);
+        } catch (err: any) {
             console.error("Interaction response failed, falling back to channel send:", err.message);
         }
     }
     
     if (context.channel) {
-        return await context.channel.send(content);
+        return await (context.channel as any).send(content);
     }
 }
 
-async function syncNewTweets(context, channelID, lastId) {
+async function syncNewTweets(context: BotContext, channelID: string, lastId: string) {
     if (activeSyncs.has(channelID)) return;
     activeSyncs.add(channelID);
 
     try {
         console.log(`[SYNC] Starting background tweet sync for channel ${channelID} after message ${lastId}...`);
-        const channel = await context.client.channels.fetch(channelID);
-        let newTweets = [];
+        const channel = await context.client.channels.fetch(channelID) as TextBasedChannel;
+        let newTweets: { author: string, content: string, message_id: string }[] = [];
         let currentAfter = lastId;
         let totalSynced = 0;
 
@@ -172,7 +176,7 @@ async function syncNewTweets(context, channelID, lastId) {
                     });
                 }
             });
-            currentAfter = messages.lastKey();
+            currentAfter = messages.lastKey() as string;
 
             if (newTweets.length >= 100) {
                 const inserted = db.saveTweets(channelID, newTweets);
@@ -192,7 +196,7 @@ async function syncNewTweets(context, channelID, lastId) {
         } else {
             console.log(`[SYNC] Tweet sync for ${channelID} complete: No new unique tweets found.`);
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error(`[SYNC] Tweet sync error for ${channelID}:`, err.message);
     } finally {
         console.log(`[SYNC] Background process ended for channel ${channelID}.`);
@@ -200,15 +204,16 @@ async function syncNewTweets(context, channelID, lastId) {
     }
 }
 
-async function fetchAllTweets(context, initialCount = 1) {
+async function fetchAllTweets(context: BotContext, initialCount = 1) {
     try {
+        if (!context.channel) return;
         let channelID = context.channel.id;
         let client = context.client;
 
         const channel = await client.channels.fetch(channelID);
-        if (!channel.isTextBased()) return;
+        if (!channel || !channel.isTextBased() || !('createdTimestamp' in channel)) return;
 
-        const createdTimestamp = channel.createdTimestamp;
+        const createdTimestamp = channel.createdTimestamp as number;
         const now = Date.now();
         const duration = now - createdTimestamp;
         const numWorkers = 12;
@@ -222,7 +227,8 @@ async function fetchAllTweets(context, initialCount = 1) {
             .setTitle("🐦 Super-Tweet-Crawler Active")
             .setDescription(`Scanning <#${channelID}> for twitter links.\n\n**Workers:** ⚙️ Starting ${numWorkers} parallel crawlers...`);
 
-        const message = await sendResponse(context, { embeds: [initialEmbed] });
+        const response = await sendResponse(context, { embeds: [initialEmbed] });
+        const message = response instanceof Message ? response : null;
 
         const progressInterval = setInterval(async () => {
             const updateEmbed = new EmbedBuilder()
@@ -243,7 +249,7 @@ async function fetchAllTweets(context, initialCount = 1) {
             
             workerPromises.push((async () => {
                 try {
-                    await crawlAndStreamTweets(channel, endId, segmentStart, (count) => {
+                    await crawlAndStreamTweets(channel as TextBasedChannel, endId, segmentStart, (count: number) => {
                         totalSaved += count;
                     });
                 } finally {
@@ -275,9 +281,9 @@ async function fetchAllTweets(context, initialCount = 1) {
     }
 }
 
-async function crawlAndStreamTweets(channel, beforeId, untilTimestamp, onBatchSaved) {
+async function crawlAndStreamTweets(channel: TextBasedChannel, beforeId: string, untilTimestamp: number, onBatchSaved: (count: number) => void) {
     let currentBefore = beforeId;
-    let localBatch = [];
+    let localBatch: { author: string, content: string, message_id: string }[] = [];
 
     while (true) {
         const messages = await channel.messages.fetch({ limit: 100, before: currentBefore });
@@ -306,7 +312,7 @@ async function crawlAndStreamTweets(channel, beforeId, untilTimestamp, onBatchSa
         }
 
         if (reachedBoundary) break;
-        currentBefore = messages.lastKey();
+        currentBefore = messages.lastKey() as string;
     }
 
     if (localBatch.length > 0) {

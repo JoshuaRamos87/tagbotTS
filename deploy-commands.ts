@@ -21,7 +21,7 @@ for (const file of commandFiles) {
 }
 
 // Construct and prepare an instance of the REST module
-const rest = new REST().setToken(process.env.TOKEN);
+const rest = new REST().setToken(process.env.TOKEN as string);
 
 // and deploy your commands!
 (async () => {
@@ -37,7 +37,7 @@ const rest = new REST().setToken(process.env.TOKEN);
         // A better way is to do this inside tagbot.ts once the client is ready, 
         // or use a script that takes CLIENT_ID from .env
 		const data = await rest.put(
-			Routes.applicationCommands(process.env.CLIENT_ID),
+			Routes.applicationCommands(process.env.CLIENT_ID as string),
 			{ body: commands },
 		) as any[];
 

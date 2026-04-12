@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import * as fs from '../actions/findSauce.js';
 
 export const data = new SlashCommandBuilder()
@@ -12,8 +12,8 @@ export const data = new SlashCommandBuilder()
         option.setName('gelbooru')
             .setDescription('Use Gelbooru-specific source links'));
 
-export async function execute(interaction) {
-    const url = interaction.options.getString('url');
+export async function execute(interaction: ChatInputCommandInteraction) {
+    const url = interaction.options.getString('url', true);
     const flags = {
         gelbooru: interaction.options.getBoolean('gelbooru')
     };

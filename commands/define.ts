@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import * as dictionary from '../actions/dictionary.js';
 
 export const data = new SlashCommandBuilder()
@@ -9,8 +9,8 @@ export const data = new SlashCommandBuilder()
             .setDescription('The word to define')
             .setRequired(true));
 
-export async function execute(interaction) {
-    const word = interaction.options.getString('word');
+export async function execute(interaction: ChatInputCommandInteraction) {
+    const word = interaction.options.getString('word', true);
     console.log(`Command: define | Word: ${word}`);
     await interaction.deferReply();
     dictionary.findWord(word, interaction, 'def');

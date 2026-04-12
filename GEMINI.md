@@ -4,6 +4,7 @@ This file contains critical architectural decisions and workflows that MUST be f
 
 ## 1. Core Architecture
 - **Language/Runtime:** TypeScript, Node.js (v20+), ESM (`"type": "module"`).
+- **TypeScript Configuration:** `"strict": true` is MANDATORY. All new code must be fully typed without implicit `any` or ignored null checks.
 - **Framework:** discord.js v14.
 - **Command System:** Exclusively Slash Commands. All legacy prefix (`$`) logic in `tagbot.ts` and `command.ts` has been removed.
 - **Persistence:** SQLite via `better-sqlite3`. Metadata for images and tweets must be stored here, not in JSON files.
@@ -34,6 +35,7 @@ YouTube has aggressive bot detection that blocks standard Node.js libraries. We 
 
 ## 7. Session Persistence & Memory
 - **Mandate:** Agents MUST update this file at the end of a session if major technical hurdles were resolved or if new architectural patterns were established.
+- **Resolved Roadblock (Strict Mode):** The project was migrated from `strict: false` to `strict: true`. Over 100 type errors were resolved using a unified `BotContext` type and `sendResponse` utility in `utils/`. Future actions must import these from `utils/types.js` and `utils/response.js`.
 - **Resolved Roadblock (Seeking):** To reliably seek in YouTube audio via `yt-dlp` when streaming to `stdout`, use `downloader: 'ffmpeg'` and `downloaderArgs: 'ffmpeg_i:-ss <seconds>'`. Using `ffmpeg_i` ensures an "input seek", which is significantly faster and prevents silence/timeouts compared to a standard output seek.
 - **Robustness (Based Errors):** Standardize error reporting using a "Based Error" system (personality-driven fallback messages) to prevent process crashes. Global listeners (`unhandledRejection`, `uncaughtException`) must be active to keep the bot online during library-level failures.
 

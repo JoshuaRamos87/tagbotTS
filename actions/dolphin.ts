@@ -1,15 +1,8 @@
 
-async function sendResponse(context, content) {
-    if (context.reply) {
-        if (context.deferred || context.replied) {
-            return context.followUp(content);
-        }
-        return context.reply(content);
-    }
-    return context.channel.send(content);
-}
+import { BotContext } from '../utils/types.js';
+import { sendResponse } from '../utils/response.js';
 
-export function askDolphin(context, userPrompt) {
+export function askDolphin(context: BotContext, userPrompt: string) {
     console.log(`User prompt: ${userPrompt}`);
 
     // Send the prompt to Ollama

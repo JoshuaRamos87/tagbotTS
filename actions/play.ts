@@ -225,7 +225,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                 }
             };
             deepSearchChapters(info);
-        } catch (e) {
+        } catch (e: any) {
             console.error("[Chapter Deep Search Error]", e.message);
         }
 
@@ -233,8 +233,9 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
         if (chapters.length === 0) {
             try {
                 let description = "";
-                if (info.basic_info?.short_description) description = info.basic_info.short_description.toString();
-                if (!description && info.basic_info?.description) description = info.basic_info.description.toString();
+                const basicInfo = info.basic_info as any;
+                if (basicInfo?.short_description) description = basicInfo.short_description.toString();
+                if (!description && basicInfo?.description) description = basicInfo.description.toString();
                 
                 // If standard access fails or returns an object representation, do a deep text scrape of basic_info
                 if (!description || description.includes("[object Object]")) {
@@ -250,7 +251,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                             if (Object.prototype.hasOwnProperty.call(obj, key)) findText(obj[key]);
                         }
                     };
-                    findText(info.basic_info);
+                    findText(basicInfo);
                 }
 
                 const lines = description.split('\n');
@@ -275,7 +276,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                         if (chapterTitle) addChapter(chapterTitle, sec * 1000);
                     }
                 });
-            } catch (descErr) {
+            } catch (descErr: any) {
                 console.error("[Description Parse Error]", descErr.message);
             }
         }
