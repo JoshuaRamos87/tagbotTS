@@ -168,7 +168,7 @@ async function syncNewTweets(context: BotContext, channelID: string, lastId: str
             if (messages.size === 0) break;
 
             messages.forEach(msg => {
-                if (msg.content.includes("twitter.com") && !msg.author.bot) {
+                if ((msg.content.includes("twitter.com") || msg.content.includes("x.com")) && !msg.author.bot) {
                     newTweets.push({
                         author: msg.author.username,
                         content: msg.content,
@@ -296,7 +296,7 @@ async function crawlAndStreamTweets(channel: TextBasedChannel, beforeId: string,
                 break;
             }
 
-            if (msg.content.includes("twitter.com") && !msg.author.bot) {
+            if ((msg.content.includes("twitter.com") || msg.content.includes("x.com")) && !msg.author.bot) {
                 localBatch.push({
                     author: msg.author.username,
                     content: msg.content,
