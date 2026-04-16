@@ -1,38 +1,55 @@
 # tagbotTS
-Simple discord bot that will give you definitions or synonyms of words based on input commands. Uses the free dictionary api you can find [here](https://dictionaryapi.dev/).<br />
-Other functionality includes:<br />
-Finding anime source by providing a URL of a screenshot from an anime. Uses this [npm module](https://www.npmjs.com/package/iqdb-client)<br />
-Finding the source of anime artwork by providing a URL of the anime artwork. Uses this [API](https://soruly.github.io/trace.moe-api/#/docs) <br />
-Finding a random image in the channel you are currently in. 
-<br />
 
+**tagbotTS** is a modular Discord bot written in TypeScript, providing utility features ranging from dictionary lookups and anime discovery to high-quality YouTube audio streaming.
 
-Use the $help for ways to trigger these actions.
+## Features
 
+- **Dictionary & Synonyms**: Quick word definitions and synonyms powered by the Free Dictionary API.
+- **Anime Discovery**: 
+  - `findanime`: Identifies anime from a screenshot URL using the [trace.moe API](https://soruly.github.io/trace.moe-api/).
+  - `findsauce`: Finds the original source of anime artwork using [iqdb-client](https://www.npmjs.com/package/iqdb-client).
+- **YouTube Audio**: High-performance audio streaming with support for seeking, chapters, and interactive controls.
+- **Media Indexing**: Crawls channel history to build a searchable index of images and tweets for random retrieval.
 
-## How to get started
+## Getting Started
 
-The following are instructions to get the program running
+### Requirements
+- **Node.js**: v20.0.0 or higher.
+- **FFmpeg**: Required for audio transcoding.
+- **Discord Bot Token**: Create an application at the [Discord Developer Portal](https://discord.com/developers/applications).
 
-### Requirements:
+### Installation
+1. Clone the repository.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Create a `.env` file in the root directory with the following variables:
+   ```env
+   TOKEN=your_discord_bot_token
+   CLIENT_ID=your_discord_client_id
+   ```
 
-Latest version of Node.js was used for this, v16.13.0
-Get it [here](https://nodejs.org/en/) <br />
-Requires getting your own discord api key and storing it as an environment variable in a .env file, register [here](https://discord.com/developers/applications)<br/>
-IMPORTANT .env file needs to be with in the build folder, this is not done automatically yet...
+## Usage
 
-## Installation of dependencies
+### Development & Build
+The bot uses TypeScript and must be compiled before running.
 
-```
-npm install
-```
+- **Deploy Commands**: Registers slash commands with Discord.
+  ```bash
+  npm run deploy
+  ```
+- **Run (Windows)**:
+  ```bash
+  npm run start-win
+  ```
+- **Run (Linux)**:
+  ```bash
+  npm run start-linux
+  ```
 
-## Example of running program
-
-```
-npm run start-win for windows
-npm run start-linux for linux
-```
+### Commands
+All features are accessed via **Slash Commands** (e.g., `/play`, `/define`, `/findanime`). The legacy `$` prefix is no longer supported.
 
 ## Author
 Joshua Ramos
