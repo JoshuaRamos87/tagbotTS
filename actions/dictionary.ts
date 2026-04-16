@@ -1,5 +1,6 @@
 import { BotContext } from '../utils/types.js';
-import { sendResponse } from '../utils/response.js';
+import { sendResponse, getUserId } from '../utils/response.js';
+import { logError } from '../utils/database.js';
 
 export async function findWord(word: string, context: BotContext, wordAction: 'def' | 'syn') {
     const cleanedWord = word.replace(/%20/g, ' ').trim();
@@ -33,6 +34,13 @@ export async function findWord(word: string, context: BotContext, wordAction: 'd
         }
     } catch (err: any) {
         console.error("[Dictionary Error]", err.message);
+        logError(err, {
+            method: 'findWord',
+            user_id: getUserId(context),
+            guild_id: context.guildId || undefined,
+            channel_id: context.channel?.id,
+            additional_info: { word, wordAction }
+        });
         await sendResponse(context, "An error occurred while looking up the word.");
     }
 }

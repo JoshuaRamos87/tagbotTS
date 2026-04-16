@@ -1,56 +1,54 @@
-import http from "https";
 import { BotContext } from '../utils/types.js';
-import { sendResponse } from '../utils/response.js';
+import { sendResponse, getUserId } from '../utils/response.js';
+import { logError } from '../utils/database.js';
 
-export function findAnime(URL: string, flags: any, context: BotContext) {
-    let options = {
-        "method": "GET",
-        "hostname": "api.trace.moe",
-        "path": '/search?anilistInfo&url=',
-    };
-    console.log(URL)
-    options["path"] += URL
+export async function findAnime(URL: string, flags: any, context: BotContext) {
+    const url = `https://api.trace.moe/search?anilistInfo&url=${encodeURIComponent(URL)}`;
 
-    let req = http.request(options, function (res) {
-    let chunks: Buffer[] = [];
+    try {
+        const res = await fetch(url);
+        
+        if (!res.ok) {
+            throw new Error(`trace.moe API error: ${res.status} ${res.statusText}`);
+        }
 
-    res.on("data", function (chunk) {
-        chunks.push(chunk);
-    });
-
-    res.on("end", function () {
-            let body = Buffer.concat(chunks);
-            let jsonObject = JSON.parse(body.toString())  
-
-            try{
-                displayAnime(jsonObject,context,flags);
-            } catch(err){}
+        const jsonObject: any = await res.json();
+        displayAnime(jsonObject, context, flags);
+    } catch (err: any) {
+        console.error("[findAnime Error]", err.message);
+        logError(err, {
+            method: 'findAnime',
+            user_id: getUserId(context),
+            guild_id: context.guildId || undefined,
+            channel_id: context.channel?.id,
+            additional_info: { URL, flags }
         });
-
-    });
-    req.end();
+        await sendResponse(context, "An error occurred while searching for the anime.");
+    }
 }
 
-function displayAnime(jsonObject: any, context: BotContext, flags: any)
-{
+function displayAnime(jsonObject: any, context: BotContext, flags: any) {
     let length = flags["-l"] || flags["limit"];
-    if(length === undefined || Number.isNaN(length))
+    if (length === undefined || Number.isNaN(length))
         length = 1;
 
+    if (!jsonObject.result || jsonObject.result.length === 0) {
+        sendResponse(context, "No anime found for this image.");
+        return;
+    }
+
     sendResponse(context, "-----------------------------------------------------------------");
-    for(let l = 0; l < length && l < jsonObject["result"].length; l++)
-    {
-        if(flags["-i"] || flags["image"])
-        {
-            sendResponse(context, jsonObject["result"][l]["image"]);
+    for (let l = 0; l < length && l < jsonObject["result"].length; l++) {
+        const result = jsonObject["result"][l];
+        if (flags["-i"] || flags["image"]) {
+            sendResponse(context, result["image"]);
         }
-        if(flags["-v"] || flags["video"])
-        {
-            sendResponse(context, jsonObject["result"][l]["video"]);
+        if (flags["-v"] || flags["video"]) {
+            sendResponse(context, result["video"]);
         }
-        sendResponse(context, `title: ${jsonObject["result"][l]["anilist"]["title"]["romaji"]}
-similarity: ${jsonObject["result"][l]["similarity"].toFixed(2)}
-episode: ${jsonObject["result"][l]["episode"]}
+        sendResponse(context, `title: ${result["anilist"]["title"]["romaji"]}
+similarity: ${result["similarity"].toFixed(2)}
+episode: ${result["episode"]}
 -----------------------------------------------------------------`);
     }               
 }

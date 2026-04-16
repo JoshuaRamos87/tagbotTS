@@ -15,3 +15,10 @@ export async function sendResponse(context: BotContext, content: string | { cont
     }
     return interaction.reply(payload);
 }
+
+/**
+ * Safely extracts the User ID from any BotContext.
+ */
+export function getUserId(context: BotContext): string {
+    return (context instanceof Message) ? context.author.id : context.user.id;
+}

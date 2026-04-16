@@ -15,8 +15,9 @@ import ffmpegPath from 'ffmpeg-static';
 import { ChatInputCommandInteraction, Message, GuildMember, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { Readable } from 'node:stream';
 
-import { getBasedError } from '../utils/constants.js';
-import { sendResponse } from '../utils/response.js';
+import { getBasicError } from '../utils/constants.js';
+import { sendResponse, getUserId } from '../utils/response.js';
+import { logError } from '../utils/database.js';
 
 let yt: Innertube;
 
@@ -482,6 +483,14 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
 
         player.on('error', error => {
             console.error(`[AudioPlayer Error] ${error.message}`);
+            
+            // Log exception to DB
+            logError(error, {
+                method: 'AudioPlayer:error',
+                guild_id: guildId,
+                additional_info: { url: cleanUrl }
+            });
+
             const state = guildStates.get(guildId);
             if (state?.interval) {
                 clearInterval(state.interval);
@@ -489,7 +498,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             }
             if (message && message.editable) {
                 message.edit({ 
-                    content: `❌ **${getBasedError()}**\n*(Playback Error: ${error.message})*`, 
+                    content: `❌ **${getBasicError()}**\n*(Playback Error: ${error.message})*`, 
                     components: [] 
                 }).catch(() => {});
             }
@@ -497,11 +506,21 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
 
     } catch (error: any) {
         console.error("[Play Error]", error.message);
+        
+        // Log exception to DB
+        logError(error, {
+            method: 'playYouTube:fatal',
+            user_id: getUserId(context),
+            guild_id: context.guild?.id,
+            channel_id: context.channel?.id,
+            additional_info: { url: url }
+        });
+
         const state = guildStates.get(guildId);
         if (state?.interval) {
             clearInterval(state.interval);
             guildStates.delete(guildId);
         }
-        await sendResponse(context, `❌ **${getBasedError()}**\n*(Technical Error: ${error.message})*`);
+        await sendResponse(context, `❌ **${getBasicError()}**\n*(Technical Error: ${error.message})*`);
     }
 }

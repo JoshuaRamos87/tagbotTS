@@ -1,7 +1,9 @@
 // @ts-ignore
 import { searchPic, makeSearchFunc, defaultConfig } from "iqdb-client";
 import { BotContext } from '../utils/types.js';
-import { sendResponse } from '../utils/response.js';
+import { sendResponse, getUserId } from '../utils/response.js';
+
+import { logError } from '../utils/database.js';
 
 // Create a custom search function with a browser-like User-Agent
 const customSearchPic = makeSearchFunc({
@@ -60,6 +62,15 @@ export async function findSauce(context: BotContext, URL: string, flags: any) {
         } else if (result.err) {
             console.error(`[SAUCE] iqdb-client error: ${result.err}`);
             
+            // Log IQDB library errors
+            logError(result.err, {
+                method: 'findSauce:iqdb',
+                user_id: getUserId(context),
+                guild_id: context.guildId || undefined,
+                channel_id: context.channel?.id,
+                additional_info: { URL, flags, lib }
+            });
+
             // If IQDB specifically fails to read the result, it might be a temporary server issue or file format issue
             if (result.err.includes("Can't read query result")) {
                 await sendResponse(context, "IQDB is currently having trouble processing this image. This often happens if the image is too large, in an unsupported format, or if their server is overloaded. Please try again later or with a different image.");
@@ -71,6 +82,13 @@ export async function findSauce(context: BotContext, URL: string, flags: any) {
         }
     } catch (err: any) {
         console.error(`[SAUCE] Unexpected error:`, err);
+        logError(err, {
+            method: 'findSauce:fatal',
+            user_id: getUserId(context),
+            guild_id: context.guildId || undefined,
+            channel_id: context.channel?.id,
+            additional_info: { URL, flags }
+        });
         await sendResponse(context, `An error occurred: ${err.message}`);
     }
 }

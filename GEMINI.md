@@ -37,7 +37,7 @@ YouTube has aggressive bot detection that blocks standard Node.js libraries. We 
 - **Mandate:** Agents MUST update this file at the end of a session if major technical hurdles were resolved or if new architectural patterns were established.
 - **Resolved Roadblock (Strict Mode):** The project was migrated from `strict: false` to `strict: true`. Over 100 type errors were resolved using a unified `BotContext` type and `sendResponse` utility in `utils/`. Future actions must import these from `utils/types.js` and `utils/response.js`.
 - **Resolved Roadblock (Seeking):** To reliably seek in YouTube audio via `yt-dlp` when streaming to `stdout`, use `downloader: 'ffmpeg'` and `downloaderArgs: 'ffmpeg_i:-ss <seconds>'`. Using `ffmpeg_i` ensures an "input seek", which is significantly faster and prevents silence/timeouts compared to a standard output seek.
-- **Robustness (Based Errors):** Standardize error reporting using a "Based Error" system (personality-driven fallback messages) to prevent process crashes. Global listeners (`unhandledRejection`, `uncaughtException`) must be active to keep the bot online during library-level failures.
+- **Robustness (Basic Errors) & Logging:** Standardize error reporting using a "Basic Error" system (personality-driven fallback messages) and a database-backed exception logger (`error_logs` table) to capture stack traces and context for debugging. Global listeners (`unhandledRejection`, `uncaughtException`) must be active to keep the bot online during library-level failures.
 
 ## 8. Environment
 - Required `.env` variables: `TOKEN`, `CLIENT_ID`.

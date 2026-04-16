@@ -3,7 +3,7 @@ import path from 'path';
 import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, TextBasedChannel, Message } from 'discord.js';
 import * as db from '../utils/database.js';
 import { BotContext } from '../utils/types.js';
-import { sendResponse } from '../utils/response.js';
+import { sendResponse, getUserId } from '../utils/response.js';
 
 const activeSyncs = new Set<string>();
 
@@ -148,6 +148,10 @@ async function syncNewTweets(context: BotContext, channelID: string, lastId: str
         }
     } catch (err: any) {
         console.error(`[SYNC] Tweet sync error for ${channelID}:`, err.message);
+        db.logError(err, {
+            method: 'syncNewTweets',
+            channel_id: channelID
+        });
     } finally {
         console.log(`[SYNC] Background process ended for channel ${channelID}.`);
         activeSyncs.delete(channelID);
@@ -226,8 +230,14 @@ async function fetchAllTweets(context: BotContext, initialCount = 1) {
         } else {
             sendResponse(context, "I couldn't find any tweets in this channel!");
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error(err);
+        db.logError(err, {
+            method: 'fetchAllTweets',
+            user_id: getUserId(context),
+            guild_id: context.guildId || undefined,
+            channel_id: context.channel?.id
+        });
     }
 }
 

@@ -1,12 +1,12 @@
-export const BASED_ERRORS = [
-    "Something went wrong, but we're still based.",
-    "The code is tripping but the bot is still dripping.",
-    "Error 404: Skill not found. Just kidding, the bot is fine.",
-    "The bot took a hit, but it's built different. Still standing.",
-    "A minor setback for a major comeback. Bot's still up.",
-    "Logic failed, but the vibe remains untouched."
+export const BASIC_ERRORS = [
+    "An unexpected error occurred, but we're working on it.",
+    "Something went wrong while processing your request.",
+    "The bot encountered an error. Please try again later.",
+    "A technical issue occurred. The details have been logged.",
+    "Command failed due to an internal exception.",
+    "The request could not be completed at this time."
 ];
 
-export function getBasedError() {
-    return BASED_ERRORS[Math.floor(Math.random() * BASED_ERRORS.length)];
+export function getBasicError() {
+    return BASIC_ERRORS[Math.floor(Math.random() * BASIC_ERRORS.length)];
 }

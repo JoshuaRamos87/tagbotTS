@@ -11,7 +11,7 @@ if (!fs.existsSync(path.dirname(dbPath))) {
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 
-// Initialize tables with MULTI-IMAGE support
+// Initialize tables with MULTI-IMAGE support and Error Logging
 db.exec(`
     CREATE TABLE IF NOT EXISTS images (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,6 +23,7 @@ db.exec(`
         UNIQUE(channel_id, message_id, url)
     );
     CREATE INDEX IF NOT EXISTS idx_images_channel_id ON images(channel_id);
+    
     CREATE TABLE IF NOT EXISTS tweets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         channel_id TEXT NOT NULL,
@@ -33,6 +34,18 @@ db.exec(`
         UNIQUE(channel_id, message_id)
     );
     CREATE INDEX IF NOT EXISTS idx_tweets_channel_id ON tweets(channel_id);
+
+    CREATE TABLE IF NOT EXISTS error_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message TEXT,
+        stack_trace TEXT,
+        method TEXT,
+        user_id TEXT,
+        guild_id TEXT,
+        channel_id TEXT,
+        additional_info TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
 `);
 
 // Migration: Ensure existing images table supports multiple attachments per message
@@ -72,6 +85,59 @@ export interface TweetRecord {
     message_id: string;
     author: string;
     content: string;
+}
+
+export interface ErrorLogContext {
+    method?: string;
+    user_id?: string;
+    guild_id?: string;
+    channel_id?: string;
+    additional_info?: any;
+}
+
+/**
+ * Standardized error logging to the database.
+ */
+export function logError(error: any, context: ErrorLogContext = {}) {
+    let message = 'Unknown Error';
+    let stack = '';
+
+    if (error instanceof Error) {
+        message = error.message;
+        stack = error.stack || '';
+    } else if (typeof error === 'object' && error !== null) {
+        message = error.message || (typeof error.toString === 'function' ? error.toString() : JSON.stringify(error));
+        stack = error.stack || '';
+    } else {
+        message = String(error);
+    }
+
+    // Fallback: If no stack trace was found on the error itself, 
+    // capture the current execution stack to see where the logger was triggered.
+    if (!stack) {
+        stack = new Error(`Fallback Stack for: ${message}`).stack || '';
+    }
+
+    const additionalInfo = context.additional_info ? JSON.stringify(context.additional_info) : null;
+
+    try {
+        db.prepare(`
+            INSERT INTO error_logs (message, stack_trace, method, user_id, guild_id, channel_id, additional_info)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(
+            message,
+            stack,
+            context.method || 'Unknown',
+            context.user_id || null,
+            context.guild_id || null,
+            context.channel_id || null,
+            additionalInfo
+        );
+        console.error(`[DB Error Logged] ${context.method || 'Unknown'}: ${message}`);
+    } catch (logErr) {
+        console.error("[CRITICAL DB LOG ERROR]", logErr);
+        console.error("[Original Error]", error);
+    }
 }
 
 export function saveImages(channelId: string, images: { author: string, url: string, message_id?: string }[]): number {

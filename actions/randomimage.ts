@@ -3,7 +3,7 @@ import path from 'path';
 import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, TextBasedChannel, Message } from 'discord.js';
 import * as db from '../utils/database.js';
 import { BotContext } from '../utils/types.js';
-import { sendResponse } from '../utils/response.js';
+import { sendResponse, getUserId } from '../utils/response.js';
 
 // Track active syncs to avoid overlapping
 const activeSyncs = new Set<string>();
@@ -182,6 +182,10 @@ async function syncNewImages(context: BotContext, channelID: string, lastId: str
         }
     } catch (err: any) {
         console.error(`[SYNC] Image sync error for ${channelID}:`, err.message);
+        db.logError(err, {
+            method: 'syncNewImages',
+            channel_id: channelID
+        });
     } finally {
         console.log(`[SYNC] Background process ended for channel ${channelID}.`);
         activeSyncs.delete(channelID);
@@ -257,8 +261,14 @@ async function fetchAllImages(context: BotContext, channelID: string, initialCou
         } else {
             await sendResponse(context, "I couldn't find any images in this channel!");
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error(err);
+        db.logError(err, {
+            method: 'fetchAllImages',
+            user_id: getUserId(context),
+            guild_id: context.guildId || undefined,
+            channel_id: channelID
+        });
     }
 }
 

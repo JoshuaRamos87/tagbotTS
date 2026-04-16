@@ -1,6 +1,8 @@
 import { AutocompleteInteraction, ChatInputCommandInteraction, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 import { sendResponse } from '../utils/response.js';
 
+import { logError } from '../utils/database.js';
+
 interface GelbooruTag {
     id: number;
     name: string;
@@ -43,6 +45,7 @@ async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer, contentT
         return { buffer, contentType };
     } catch (error) {
         console.error('[fetchImageBuffer Error]', error);
+        logError(error, { method: 'fetchImageBuffer', additional_info: { url } });
         return null;
     }
 }
@@ -84,6 +87,13 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction) {
         await interaction.respond(choices);
     } catch (error) {
         console.error('[Autocomplete Fetch Error]', error);
+        logError(error, { 
+            method: 'gac:autocomplete', 
+            user_id: interaction.user.id,
+            guild_id: interaction.guildId || undefined,
+            channel_id: interaction.channelId,
+            additional_info: { focusedValue } 
+        });
         await interaction.respond([]);
     }
 }
@@ -170,6 +180,13 @@ export async function gac(interaction: ChatInputCommandInteraction) {
         await sendResponse(interaction, { content: '', embeds: [embed], files });
     } catch (error) {
         console.error('[GAC Error]', error);
+        logError(error, { 
+            method: 'gac', 
+            user_id: interaction.user.id,
+            guild_id: interaction.guildId || undefined,
+            channel_id: interaction.channelId,
+            additional_info: { tagQuery } 
+        });
         await sendResponse(interaction, `❌ **Something went wrong while fetching the image.**`);
     }
 }

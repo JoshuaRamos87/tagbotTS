@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Client, Collection, GatewayIntentBits } from "discord.js";
 import { pathToFileURL } from 'node:url';
-import { getBasedError } from './utils/constants.js';
+import { getBasicError } from './utils/constants.js';
+import { logError } from './utils/database.js';
 
 declare module 'discord.js' {
   export interface Client {
@@ -43,10 +44,12 @@ console.log('hello')
 // Global Process Error Handling
 process.on('unhandledRejection', (reason, promise) => {
 	console.error('[Unhandled Rejection] at:', promise, 'reason:', reason);
+    logError(reason, { method: 'unhandledRejection' });
 });
 
 process.on('uncaughtException', (error) => {
 	console.error('[Uncaught Exception] thrown:', error);
+    logError(error, { method: 'uncaughtException' });
 });
 
 client.on("clientReady", () => {
@@ -68,7 +71,19 @@ client.on("interactionCreate", async interaction => {
 				await command.execute(interaction);
 			} catch (error) {
 				console.error(`[Command Error] /${interaction.commandName}:`, error);
-				const content = `❌ **${getBasedError()}**\n*(Check logs for technical details)*`;
+                
+                // Log exception to DB
+                logError(error, {
+                    method: `command:${interaction.commandName}`,
+                    user_id: interaction.user.id,
+                    guild_id: interaction.guildId || undefined,
+                    channel_id: interaction.channelId,
+                    additional_info: {
+                        options: interaction.options.data
+                    }
+                });
+
+				const content = `❌ **${getBasicError()}**\n*(Check logs for technical details)*`;
 				
 				if (interaction.replied || interaction.deferred) {
 					await interaction.followUp({ content, ephemeral: false }).catch(() => {});
@@ -86,6 +101,12 @@ client.on("interactionCreate", async interaction => {
 					await randomimage.getImage(interaction, count);
 				} catch (error) {
 					console.error("[Button Error]", error);
+                    logError(error, {
+                        method: 'button:random_image_reload',
+                        user_id: interaction.user.id,
+                        guild_id: interaction.guildId || undefined,
+                        channel_id: interaction.channelId
+                    });
 				}
 			}
 		} else if (interaction.isAutocomplete()) {
@@ -102,10 +123,17 @@ client.on("interactionCreate", async interaction => {
 				}
 			} catch (error) {
 				console.error(`[Autocomplete Error] /${interaction.commandName}:`, error);
+                logError(error, {
+                    method: `autocomplete:${interaction.commandName}`,
+                    user_id: interaction.user.id,
+                    guild_id: interaction.guildId || undefined,
+                    channel_id: interaction.channelId
+                });
 			}
 		}
 	} catch (fatalError) {
 		console.error("[FATAL INTERACTION ERROR]", fatalError);
+        logError(fatalError, { method: 'interactionCreate:fatal' });
 	}
 });
 
