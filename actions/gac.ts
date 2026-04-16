@@ -88,7 +88,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction) {
     }
 }
 
-export async function findac(interaction: ChatInputCommandInteraction) {
+export async function gac(interaction: ChatInputCommandInteraction) {
     const tags: string[] = [];
     
     // Collect all provided tags
@@ -169,7 +169,7 @@ export async function findac(interaction: ChatInputCommandInteraction) {
 
         await sendResponse(interaction, { content: '', embeds: [embed], files });
     } catch (error) {
-        console.error('[FindAC Error]', error);
+        console.error('[GAC Error]', error);
         await sendResponse(interaction, `❌ **Something went wrong while fetching the image.**`);
     }
 }
