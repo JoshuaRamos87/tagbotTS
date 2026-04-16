@@ -1,39 +1,8 @@
 {
-  "mcpServers": {
-    "data-specialist": {
-      "command": "cmd",
-      "args": [
-        "/c",
-        "npx",
-        "-y", 
-        "@modelcontextprotocol/server-sqlite", 
-        "C:\\DEV\\tagbotTS\\data\\database.sqlite"
-      ]
-    },
-    "db-toolbox": {
-      "command": "cmd",
-      "args": [
-        "/c",
-        "npx",
-        "-y", 
-        "@google/mcp-toolbox-db", 
-        "--stdio"
-      ],
-      "env": {
-        "DB_URL": "sqlite:///C:/DEV/tagbotTS/data/database.sqlite"
-      }
-    },
-    "logical-thinking": {
-      "command": "cmd",
-      "args": [
-        "/c",
-        "npx",
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ]
-    }
-  },
+  "mcpServers": {},
   "agents": {
-    "directories": ["./.gemini/agents"]
+    "directories": [
+      "./.gemini/agents"
+    ]
   }
 }
