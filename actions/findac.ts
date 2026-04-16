@@ -1,4 +1,4 @@
-import { AutocompleteInteraction, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
+import { AutocompleteInteraction, ChatInputCommandInteraction, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 import { sendResponse } from '../utils/response.js';
 
 interface GelbooruTag {
@@ -18,6 +18,34 @@ interface GelbooruPost {
 }
 
 const BROWSER_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+/**
+ * Fetches an image from a URL with necessary headers to bypass hotlinking protection.
+ */
+async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer, contentType: string | null } | null> {
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'Referer': 'https://gelbooru.com/',
+                'User-Agent': BROWSER_USER_AGENT
+            }
+        });
+
+        if (!response.ok) {
+            console.error(`[Image Fetch Error] Status: ${response.status} for URL: ${url}`);
+            return null;
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const contentType = response.headers.get('content-type');
+
+        return { buffer, contentType };
+    } catch (error) {
+        console.error('[fetchImageBuffer Error]', error);
+        return null;
+    }
+}
 
 export async function handleAutocomplete(interaction: AutocompleteInteraction) {
     const focusedValue = interaction.options.getFocused();
@@ -109,12 +137,16 @@ export async function findac(interaction: ChatInputCommandInteraction) {
         };
 
         const fileUrl = ensureProtocol(randomPost.file_url);
+        const fileExtension = fileUrl.split('.').pop()?.split('?')[0] || 'jpg';
+        const attachmentName = `image.${fileExtension}`;
 
+        // Attempt to fetch the image buffer to bypass Discord's proxy block
+        const imageData = await fetchImageBuffer(fileUrl);
+        
         const embed = new EmbedBuilder()
             .setTitle(`Gelbooru Search: ${tags.slice(0, 3).join(', ')}${tags.length > 3 ? '...' : ''}`)
             .setURL(`https://gelbooru.com/index.php?page=post&s=view&id=${randomPost.id}`)
             .setDescription(`**Tags:** ${tags.join(', ')}\n\n[Original Image](${fileUrl})`)
-            .setThumbnail(fileUrl)
             .addFields(
                 { name: 'Score', value: randomPost.score.toString(), inline: true },
                 { name: 'Rating', value: (randomPost.rating || 'N/A').toUpperCase(), inline: true },
@@ -123,9 +155,22 @@ export async function findac(interaction: ChatInputCommandInteraction) {
             .setColor(0x0099FF)
             .setFooter({ text: 'Powered by Gelbooru' });
 
-        await sendResponse(interaction, { content: '', embeds: [embed] });
+        const files: AttachmentBuilder[] = [];
+
+        if (imageData) {
+            const attachment = new AttachmentBuilder(imageData.buffer, { name: attachmentName });
+            files.push(attachment);
+            embed.setImage(`attachment://${attachmentName}`);
+        } else {
+            // Fallback: try to set URL directly (though it likely won't work, better than nothing)
+            embed.setImage(fileUrl);
+            embed.setFooter({ text: 'Powered by Gelbooru (Image proxy bypass failed)' });
+        }
+
+        await sendResponse(interaction, { content: '', embeds: [embed], files });
     } catch (error) {
         console.error('[FindAC Error]', error);
         await sendResponse(interaction, `❌ **Something went wrong while fetching the image.**`);
     }
 }
+
