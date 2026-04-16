@@ -12,7 +12,6 @@ export const LOG_PREFIX_BUTTON_ERROR = "[Button Error]";
 export const LOG_PREFIX_FATAL_ERROR = "[FATAL INTERACTION ERROR]";
 export const LOG_PREFIX_PLAY_ERROR = "[Play Error]";
 export const LOG_PREFIX_AUDIOPLAYER_ERROR = "[AudioPlayer Error]";
-export const LOG_PREFIX_TRANSLATE_ERROR = "[Translate Error]";
 export const LOG_PREFIX_IMAGE_FETCH_ERROR = "[Image Fetch Error]";
 export const LOG_PREFIX_GELBOORU_API_ERROR = "[Gelbooru API Error]";
 export const LOG_PREFIX_DICTIONARY_ERROR = "[Dictionary Error]";

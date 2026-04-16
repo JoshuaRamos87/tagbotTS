@@ -3,7 +3,6 @@ Simple discord bot that will give you definitions or synonyms of words based on 
 Other functionality includes:<br />
 Finding anime source by providing a URL of a screenshot from an anime. Uses this [npm module](https://www.npmjs.com/package/iqdb-client)<br />
 Finding the source of anime artwork by providing a URL of the anime artwork. Uses this [API](https://soruly.github.io/trace.moe-api/#/docs) <br />
-Translating from one language to another. Uses this [npm module](https://www.npmjs.com/package/@iamtraction/google-translate) <br />
 Finding a random image in the channel you are currently in. 
 <br />
 

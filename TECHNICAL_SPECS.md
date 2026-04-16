@@ -1,7 +1,7 @@
 # Technical Specifications: tagbotTS
 
 ## Project Overview
-**tagbotTS** is a multi-functional Discord bot written in TypeScript. It provides a variety of utility and entertainment features, ranging from dictionary lookups and language translation to anime/image source discovery, and voice channel audio streaming.
+**tagbotTS** is a multi-functional Discord bot written in TypeScript. It provides a variety of utility and entertainment features, ranging from dictionary lookups and anime/image source discovery to voice channel audio streaming.
 
 ## Core Technology Stack
 - **Language:** TypeScript / Node.js
@@ -11,7 +11,6 @@
   - **Dictionary:** [Free Dictionary API](https://dictionaryapi.dev/)
   - **Anime Search:** [trace.moe API](https://soruly.github.io/trace.moe-api/)
   - **Image Sauce:** [iqdb-client](https://www.npmjs.com/package/iqdb-client)
-  - **Translation:** [@iamtraction/google-translate](https://www.npmjs.com/package/@iamtraction/google-translate)
   - **Audio Streaming:** [YouTube.js (Innertube)](https://github.com/LuanRT/YouTube.js) and [@discordjs/voice](https://discord.js.org/docs/packages/voice)
 
 ## Architecture
@@ -26,7 +25,6 @@ The project follows a modular "action-based" architecture:
 ### 1. Dictionary & Linguistics
 - `/define <word>`: Fetches and displays definitions.
 - `/synonym <word>`: Fetches and displays synonyms.
-- `/translate [language] [text]`: Translates text using Google Translate.
 
 ### 2. Source Discovery
 - `/findanime <URL>`: Searches for anime source using a screenshot URL.
