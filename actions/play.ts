@@ -15,7 +15,7 @@ import ffmpegPath from 'ffmpeg-static';
 import { ChatInputCommandInteraction, Message, GuildMember, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { Readable } from 'node:stream';
 
-import { getBasicError } from '../utils/constants.js';
+import { ERROR_GENERIC, LOG_PREFIX_CHAPTERS, LOG_PREFIX_AUDIOPLAYER_ERROR, LOG_PREFIX_PLAY_ERROR, EMOJI_ERROR, EMOJI_PLAY, EMOJI_PAUSE, EMOJI_STOP, EMOJI_SKIP_FORWARD, EMOJI_SKIP_BACKWARD, BUTTON_ID_PLAY_PAUSE, BUTTON_ID_STOP_PLAYBACK, BUTTON_ID_SKIP_BACK_30, BUTTON_ID_SKIP_FORWARD_30, BUTTON_ID_CHAPTER_SELECT, EMBED_TITLE_NOW_PLAYING, RESPONSE_DISCONNECTED, RESPONSE_NOT_IN_VOICE, RESPONSE_NOTHING_PLAYING, RESPONSE_NO_URL, RESPONSE_MUST_BE_IN_VOICE, RESPONSE_FINISHED_PLAYING } from '../utils/constants/index.js';
 import { sendResponse, getUserId } from '../utils/response.js';
 import { logError } from '../utils/database.js';
 
@@ -65,9 +65,9 @@ export async function stopPlayback(context: any) {
     const connection = getVoiceConnection(guild.id);
     if (connection) {
         connection.destroy();
-        await sendResponse(context, "⏹️ Disconnected.");
+        await sendResponse(context, RESPONSE_DISCONNECTED);
     } else {
-        await sendResponse(context, "❌ Not in a voice channel.");
+        await sendResponse(context, RESPONSE_NOT_IN_VOICE);
     }
 }
 
@@ -77,7 +77,7 @@ export async function skipForward(context: any, seconds: number) {
     
     const state = guildStates.get(guildId);
     if (!state || !state.currentUrl) {
-        return sendResponse(context, "❌ Nothing is currently playing.");
+        return sendResponse(context, RESPONSE_NOTHING_PLAYING);
     }
 
     const playedMs = state.currentResource?.playbackDuration || 0;
@@ -86,7 +86,7 @@ export async function skipForward(context: any, seconds: number) {
     if (newOffset < 0) newOffset = 0;
 
     const actionText = seconds > 0 ? `forward ${seconds}s` : `backward ${Math.abs(seconds)}s`;
-    await sendResponse(context, `⏩ Skipping ${actionText} to ${formatTime(newOffset * 1000)}...`);
+    await sendResponse(context, `${EMOJI_SKIP_FORWARD} Skipping ${actionText} to ${formatTime(newOffset * 1000)}...`);
     return playYouTube(state.currentUrl, context, newOffset);
 }
 
@@ -96,17 +96,17 @@ export async function seekTo(context: any, targetSeconds: number) {
     
     const state = guildStates.get(guildId);
     if (!state || !state.currentUrl) {
-        return sendResponse(context, "❌ Nothing is currently playing.");
+        return sendResponse(context, RESPONSE_NOTHING_PLAYING);
     }
 
-    await sendResponse(context, `⏩ Seeking to ${formatTime(targetSeconds * 1000)}...`);
+    await sendResponse(context, `${EMOJI_SKIP_FORWARD} Seeking to ${formatTime(targetSeconds * 1000)}...`);
     return playYouTube(state.currentUrl, context, targetSeconds);
 }
 
 export async function playYouTube(url: string, context: any, skipSeconds: number = 0) {
     const input = url?.trim();
     if (!input || input === 'undefined') {
-        return sendResponse(context, "❌ No URL provided!");
+        return sendResponse(context, RESPONSE_NO_URL);
     }
 
     // Extract ID and check for URL timestamp (e.g., ?t=125 or &t=1m20s)
@@ -135,7 +135,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
     const cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const member = context.member as GuildMember;
     if (!member?.voice?.channel) {
-        return sendResponse(context, "❌ You must be in a voice channel!");
+        return sendResponse(context, RESPONSE_MUST_BE_IN_VOICE);
     }
 
     const guildId = context.guild.id;
@@ -198,7 +198,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             };
             deepSearchChapters(info);
         } catch (e: any) {
-            console.error("[Chapter Deep Search Error]", e.message);
+            console.error(LOG_PREFIX_CHAPTERS, e.message);
         }
 
         // Description Parser Fallback (If official metadata is missing)
@@ -256,7 +256,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
         // Final sort and validation
         chapters.sort((a, b) => a.time_seconds - b.time_seconds);
         if (chapters.length > 0) {
-            console.log(`[Chapters] Successfully extracted ${chapters.length} chapters for "${title}"`);
+            console.log(`${LOG_PREFIX_CHAPTERS} Successfully extracted ${chapters.length} chapters for "${title}"`);
         }
 
         // Apply skip if specified via downloader (Confirmed reliable method in GEMINI.md)
@@ -305,7 +305,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
 
         // Create Initial Embed and Buttons
         const createEmbed = (current: string, total: string, isPaused: boolean = false) => {
-            const statusEmoji = isPaused ? "⏸️" : "▶️";
+            const statusEmoji = isPaused ? EMOJI_PAUSE : EMOJI_PLAY;
             const description = effectiveSkip > 0 
                 ? `${statusEmoji} **${current} / ${total}** (Started at ${formatTime(effectiveSkip * 1000)})`
                 : `${statusEmoji} **${current} / ${total}**`;
@@ -314,7 +314,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                 .setColor(0xFF0000)
                 .setTitle(title)
                 .setURL(cleanUrl)
-                .setAuthor({ name: 'Now Playing', iconURL: 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png' })
+                .setAuthor({ name: EMBED_TITLE_NOW_PLAYING, iconURL: 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png' })
                 .setThumbnail(thumbnail || null)
                 .setDescription(description)
                 .setTimestamp();
@@ -323,24 +323,24 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
         const createButtons = (isPaused: boolean = false) => {
             return new ActionRowBuilder<ButtonBuilder>().addComponents(
                 new ButtonBuilder()
-                    .setCustomId('back_30')
+                    .setCustomId(BUTTON_ID_SKIP_BACK_30)
                     .setLabel('Back 30s')
-                    .setEmoji('⏪')
+                    .setEmoji(EMOJI_SKIP_BACKWARD)
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
-                    .setCustomId('play_pause')
+                    .setCustomId(BUTTON_ID_PLAY_PAUSE)
                     .setLabel(isPaused ? 'Resume' : 'Pause')
-                    .setEmoji(isPaused ? '▶️' : '⏸️')
+                    .setEmoji(isPaused ? EMOJI_PLAY : EMOJI_PAUSE)
                     .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Primary),
                 new ButtonBuilder()
-                    .setCustomId('stop_playback')
+                    .setCustomId(BUTTON_ID_STOP_PLAYBACK)
                     .setLabel('Stop')
-                    .setEmoji('⏹️')
+                    .setEmoji(EMOJI_STOP)
                     .setStyle(ButtonStyle.Danger),
                 new ButtonBuilder()
-                    .setCustomId('forward_30')
+                    .setCustomId(BUTTON_ID_SKIP_FORWARD_30)
                     .setLabel('Forward 30s')
-                    .setEmoji('⏩')
+                    .setEmoji(EMOJI_SKIP_FORWARD)
                     .setStyle(ButtonStyle.Secondary)
             );
         };
@@ -349,7 +349,7 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             if (chapters.length === 0) return null;
             
             const menu = new StringSelectMenuBuilder()
-                .setCustomId('chapter_select')
+                .setCustomId(BUTTON_ID_CHAPTER_SELECT)
                 .setPlaceholder('Jump to Chapter...')
                 .addOptions(
                     chapters.slice(0, 25).map(c => 
@@ -390,12 +390,12 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             collector.on('collect', async (interaction: any) => {
                 const state = guildStates.get(guildId);
                 if (!state) {
-                    await interaction.reply({ content: "❌ No active playback state found.", ephemeral: true }).catch(() => {});
+                    await interaction.reply({ content: `${EMOJI_ERROR} No active playback state found.`, ephemeral: true }).catch(() => {});
                     return;
                 }
 
                 if (interaction.isButton()) {
-                    if (interaction.customId === 'play_pause') {
+                    if (interaction.customId === BUTTON_ID_PLAY_PAUSE) {
                         if (player.state.status === AudioPlayerStatus.Playing) {
                             player.pause();
                             const pausedEmbed = createEmbed(formatTime(effectiveSkip * 1000 + resource.playbackDuration), totalTimeStr, true);
@@ -405,20 +405,20 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                             const playingEmbed = createEmbed(formatTime(effectiveSkip * 1000 + resource.playbackDuration), totalTimeStr, false);
                             await interaction.update({ embeds: [playingEmbed], components }).catch(() => {});
                         } else {
-                            await interaction.reply({ content: "❌ Player is not in a pausable/resumable state.", ephemeral: true }).catch(() => {});
+                            await interaction.reply({ content: `${EMOJI_ERROR} Player is not in a pausable/resumable state.`, ephemeral: true }).catch(() => {});
                         }
-                    } else if (interaction.customId === 'stop_playback') {
+                    } else if (interaction.customId === BUTTON_ID_STOP_PLAYBACK) {
                         await interaction.deferUpdate().catch(() => {});
                         await stopPlayback(context);
-                    } else if (interaction.customId === 'back_30') {
+                    } else if (interaction.customId === BUTTON_ID_SKIP_BACK_30) {
                         await interaction.deferUpdate().catch(() => {});
                         await skipForward(context, -30);
-                    } else if (interaction.customId === 'forward_30') {
+                    } else if (interaction.customId === BUTTON_ID_SKIP_FORWARD_30) {
                         await interaction.deferUpdate().catch(() => {});
                         await skipForward(context, 30);
                     }
                 } else if (interaction.isStringSelectMenu()) {
-                    if (interaction.customId === 'chapter_select') {
+                    if (interaction.customId === BUTTON_ID_CHAPTER_SELECT) {
                         await interaction.deferUpdate().catch(() => {});
                         const targetSeconds = parseInt(interaction.values[0]);
                         await seekTo(context, targetSeconds);
@@ -477,12 +477,12 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             }
             context.client.user?.setActivity(null);
             if (message && message.editable) {
-                message.edit({ content: "Finished playing.", embeds: [], components: [] }).catch(() => {});
+                message.edit({ content: RESPONSE_FINISHED_PLAYING, embeds: [], components: [] }).catch(() => {});
             }
         });
 
         player.on('error', error => {
-            console.error(`[AudioPlayer Error] ${error.message}`);
+            console.error(`${LOG_PREFIX_AUDIOPLAYER_ERROR} ${error.message}`);
             
             // Log exception to DB
             logError(error, {
@@ -498,14 +498,14 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             }
             if (message && message.editable) {
                 message.edit({ 
-                    content: `❌ **${getBasicError()}**\n*(Playback Error: ${error.message})*`, 
+                    content: `${EMOJI_ERROR} **${ERROR_GENERIC}**\n*(Playback Error: ${error.message})*`, 
                     components: [] 
                 }).catch(() => {});
             }
         });
 
     } catch (error: any) {
-        console.error("[Play Error]", error.message);
+        console.error(LOG_PREFIX_PLAY_ERROR, error.message);
         
         // Log exception to DB
         logError(error, {
@@ -521,6 +521,6 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             clearInterval(state.interval);
             guildStates.delete(guildId);
         }
-        await sendResponse(context, `❌ **${getBasicError()}**\n*(Technical Error: ${error.message})*`);
+        await sendResponse(context, `${EMOJI_ERROR} **${ERROR_GENERIC}**\n*(Technical Error: ${error.message})*`);
     }
 }

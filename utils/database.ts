@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
+import { LOG_PREFIX_DB } from './constants/index.js';
 
 const dbPath = path.join(process.cwd(), 'data', 'database.sqlite');
 
@@ -51,7 +52,7 @@ db.exec(`
 // Migration: Ensure existing images table supports multiple attachments per message
 const imagesSchema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='images'").get() as { sql: string };
 if (imagesSchema && !imagesSchema.sql.includes('UNIQUE(channel_id, message_id, url)')) {
-    console.log("[DB] Upgrading images table to support multiple attachments per message...");
+    console.log(`${LOG_PREFIX_DB} Upgrading images table to support multiple attachments per message...`);
     db.transaction(() => {
         db.exec(`
             ALTER TABLE images RENAME TO images_old;

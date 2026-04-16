@@ -4,6 +4,12 @@ import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonSty
 import * as db from '../utils/database.js';
 import { BotContext } from '../utils/types.js';
 import { sendResponse, getUserId } from '../utils/response.js';
+import { 
+    LOG_PREFIX_SYNC, 
+    EMBED_TITLE_SUPER_TWEET_CRAWLER_ACTIVE, 
+    EMBED_TITLE_SUPER_TWEET_CRAWLER_SCAN, 
+    EMBED_TITLE_SUPER_TWEET_CRAWLER_COMPLETE 
+} from '../utils/constants/index.js';
 
 const activeSyncs = new Set<string>();
 
@@ -20,7 +26,7 @@ export async function getTweet(context: BotContext, count = 1) {
 
         const lastId = db.getLastTweetId(channelID);
         if (lastId) {
-            syncNewTweets(context, channelID, lastId).catch((err: any) => console.error("Tweet sync error:", err.message));
+            syncNewTweets(context, channelID, lastId).catch((err: any) => console.error(`${LOG_PREFIX_SYNC} Background sync error:`, err.message));
         }
     } else {
         await fetchAllTweets(context, count);
@@ -48,7 +54,7 @@ async function refreshTweetContent(context: BotContext, channelID: string, tweet
             }
         }
     } catch (err: any) {
-        console.error(`Failed to refresh tweet message ${tweet.message_id}:`, err.message);
+        console.error(`${LOG_PREFIX_SYNC} Failed to refresh tweet message ${tweet.message_id}:`, err.message);
     }
     return tweet;
 }
@@ -107,7 +113,7 @@ async function syncNewTweets(context: BotContext, channelID: string, lastId: str
     activeSyncs.add(channelID);
 
     try {
-        console.log(`[SYNC] Starting background tweet sync for channel ${channelID} after message ${lastId}...`);
+        console.log(`${LOG_PREFIX_SYNC} Starting background tweet sync for channel ${channelID} after message ${lastId}...`);
         const channel = await context.client.channels.fetch(channelID) as TextBasedChannel;
         let newTweets: { author: string, content: string, message_id: string }[] = [];
         let currentAfter = lastId;
@@ -131,7 +137,7 @@ async function syncNewTweets(context: BotContext, channelID: string, lastId: str
             if (newTweets.length >= 100) {
                 const inserted = db.saveTweets(channelID, newTweets);
                 totalSynced += inserted;
-                console.log(`[SYNC] Tweet batch processed: ${totalSynced} actual new tweets saved...`);
+                console.log(`${LOG_PREFIX_SYNC} Tweet batch processed: ${totalSynced} actual new tweets saved...`);
                 newTweets = [];
             }
         }
@@ -142,18 +148,18 @@ async function syncNewTweets(context: BotContext, channelID: string, lastId: str
         }
 
         if (totalSynced > 0) {
-            console.log(`[SYNC] Finished tweet sync for ${channelID}: +${totalSynced} actual new tweets.`);
+            console.log(`${LOG_PREFIX_SYNC} Finished tweet sync for ${channelID}: +${totalSynced} actual new tweets.`);
         } else {
-            console.log(`[SYNC] Tweet sync for ${channelID} complete: No new unique tweets found.`);
+            console.log(`${LOG_PREFIX_SYNC} Tweet sync for ${channelID} complete: No new unique tweets found.`);
         }
     } catch (err: any) {
-        console.error(`[SYNC] Tweet sync error for ${channelID}:`, err.message);
+        console.error(`${LOG_PREFIX_SYNC} Tweet sync error for ${channelID}:`, err.message);
         db.logError(err, {
             method: 'syncNewTweets',
             channel_id: channelID
         });
     } finally {
-        console.log(`[SYNC] Background process ended for channel ${channelID}.`);
+        console.log(`${LOG_PREFIX_SYNC} Background process ended for channel ${channelID}.`);
         activeSyncs.delete(channelID);
     }
 }
@@ -178,7 +184,7 @@ async function fetchAllTweets(context: BotContext, initialCount = 1) {
 
         const initialEmbed = new EmbedBuilder()
             .setColor(0x1DA1F2)
-            .setTitle("🐦 Super-Tweet-Crawler Active")
+            .setTitle(EMBED_TITLE_SUPER_TWEET_CRAWLER_ACTIVE)
             .setDescription(`Scanning <#${channelID}> for twitter links.\n\n**Workers:** ⚙️ Starting ${numWorkers} parallel crawlers...`);
 
         const response = await sendResponse(context, { embeds: [initialEmbed] });
@@ -187,7 +193,7 @@ async function fetchAllTweets(context: BotContext, initialCount = 1) {
         const progressInterval = setInterval(async () => {
             const updateEmbed = new EmbedBuilder()
                 .setColor(0x1DA1F2)
-                .setTitle("🐦 Super-Tweet-Crawler Scanning...")
+                .setTitle(EMBED_TITLE_SUPER_TWEET_CRAWLER_SCAN)
                 .setDescription(`Building a tweet index for <#${channelID}>.\n\n**New Tweets Saved:** 🐦 **${totalSaved.toLocaleString()}**\n**Active Workers:** ⚙️ ${activeWorkers}/${numWorkers}`);
 
             try {
@@ -219,7 +225,7 @@ async function fetchAllTweets(context: BotContext, initialCount = 1) {
         if (tweets.length > 0) {
             const successEmbed = new EmbedBuilder()
                 .setColor(0x00FF00)
-                .setTitle("✅ Super-Tweet-Crawl Complete")
+                .setTitle(EMBED_TITLE_SUPER_TWEET_CRAWLER_COMPLETE)
                 .setDescription(`Finished indexing **${totalSaved.toLocaleString()}** unique tweets in <#${channelID}>!`);
             
             if (message && message.edit) await message.edit({ embeds: [successEmbed] });

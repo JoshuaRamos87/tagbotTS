@@ -1,7 +1,16 @@
 import { AutocompleteInteraction, ChatInputCommandInteraction, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 import { sendResponse } from '../utils/response.js';
-
 import { logError } from '../utils/database.js';
+import { 
+    API_GELBOORU_TAG_BASE_URL, 
+    API_GELBOORU_POST_BASE_URL, 
+    API_GELBOORU_REFERER, 
+    BROWSER_USER_AGENT, 
+    LOG_PREFIX_IMAGE_FETCH_ERROR, 
+    LOG_PREFIX_GELBOORU_API_ERROR, 
+    LOG_PREFIX_GAC_ERROR, 
+    ERROR_GAC_NOT_FOUND 
+} from '../utils/constants/index.js';
 
 interface GelbooruTag {
     id: number;
@@ -19,8 +28,6 @@ interface GelbooruPost {
     tags: string;
 }
 
-const BROWSER_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
 /**
  * Fetches an image from a URL with necessary headers to bypass hotlinking protection.
  */
@@ -28,13 +35,13 @@ async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer, contentT
     try {
         const response = await fetch(url, {
             headers: {
-                'Referer': 'https://gelbooru.com/',
+                'Referer': API_GELBOORU_REFERER,
                 'User-Agent': BROWSER_USER_AGENT
             }
         });
 
         if (!response.ok) {
-            console.error(`[Image Fetch Error] Status: ${response.status} for URL: ${url}`);
+            console.error(`${LOG_PREFIX_IMAGE_FETCH_ERROR} Status: ${response.status} for URL: ${url}`);
             return null;
         }
 
@@ -44,7 +51,7 @@ async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer, contentT
 
         return { buffer, contentType };
     } catch (error) {
-        console.error('[fetchImageBuffer Error]', error);
+        console.error(`${LOG_PREFIX_IMAGE_FETCH_ERROR}`, error);
         logError(error, { method: 'fetchImageBuffer', additional_info: { url } });
         return null;
     }
@@ -57,7 +64,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction) {
     }
 
     try {
-        let url = `https://gelbooru.com/index.php?page=dapi&s=tag&q=index&json=1&name_pattern=%${encodeURIComponent(focusedValue)}%&limit=25&orderby=count`;
+        let url = `${API_GELBOORU_TAG_BASE_URL}&name_pattern=%${encodeURIComponent(focusedValue)}%&limit=25&orderby=count`;
         
         const apiKey = process.env.GELBOORU_API_KEY;
         const userId = process.env.GELBOORU_USER_ID;
@@ -72,7 +79,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction) {
         });
         
         if (!response.ok) {
-            console.error(`[Gelbooru API Error] Status: ${response.status} ${response.statusText}`);
+            console.error(`${LOG_PREFIX_GELBOORU_API_ERROR} Status: ${response.status} ${response.statusText}`);
             throw new Error('Gelbooru API error');
         }
         
@@ -86,7 +93,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction) {
 
         await interaction.respond(choices);
     } catch (error) {
-        console.error('[Autocomplete Fetch Error]', error);
+        console.error(`[Autocomplete Fetch Error]`, error);
         logError(error, { 
             method: 'gac:autocomplete', 
             user_id: interaction.user.id,
@@ -112,7 +119,7 @@ export async function gac(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply();
 
     try {
-        let url = `https://gelbooru.com/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tagQuery)}&limit=100`;
+        let url = `${API_GELBOORU_POST_BASE_URL}&tags=${encodeURIComponent(tagQuery)}&limit=100`;
         
         const apiKey = process.env.GELBOORU_API_KEY;
         const userId = process.env.GELBOORU_USER_ID;
@@ -127,7 +134,7 @@ export async function gac(interaction: ChatInputCommandInteraction) {
         });
         
         if (!response.ok) {
-            console.error(`[Gelbooru API Error] Status: ${response.status} ${response.statusText}`);
+            console.error(`${LOG_PREFIX_GELBOORU_API_ERROR} Status: ${response.status} ${response.statusText}`);
             throw new Error('Gelbooru API error');
         }
         
@@ -135,7 +142,7 @@ export async function gac(interaction: ChatInputCommandInteraction) {
         const posts = Array.isArray(data.post) ? data.post : (data.post ? [data.post] : []);
 
         if (posts.length === 0) {
-            return sendResponse(interaction, `❌ No images found for tags: \`${tagQuery}\``);
+            return sendResponse(interaction, ERROR_GAC_NOT_FOUND(tagQuery));
         }
 
         const randomPost = posts[Math.floor(Math.random() * posts.length)];
@@ -179,7 +186,7 @@ export async function gac(interaction: ChatInputCommandInteraction) {
 
         await sendResponse(interaction, { content: '', embeds: [embed], files });
     } catch (error) {
-        console.error('[GAC Error]', error);
+        console.error(`${LOG_PREFIX_GAC_ERROR}`, error);
         logError(error, { 
             method: 'gac', 
             user_id: interaction.user.id,
@@ -190,4 +197,3 @@ export async function gac(interaction: ChatInputCommandInteraction) {
         await sendResponse(interaction, `❌ **Something went wrong while fetching the image.**`);
     }
 }
-

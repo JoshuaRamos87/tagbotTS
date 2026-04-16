@@ -1,10 +1,11 @@
 import { BotContext } from '../utils/types.js';
 import { sendResponse, getUserId } from '../utils/response.js';
 import { logError } from '../utils/database.js';
+import { API_DICTIONARY_BASE_URL, LOG_PREFIX_DICTIONARY_ERROR } from '../utils/constants/index.js';
 
 export async function findWord(word: string, context: BotContext, wordAction: 'def' | 'syn') {
     const cleanedWord = word.replace(/%20/g, ' ').trim();
-    const url = `https://api.dictionaryapi.dev/api/v2/entries/en_US/${encodeURIComponent(cleanedWord)}`;
+    const url = `${API_DICTIONARY_BASE_URL}${encodeURIComponent(cleanedWord)}`;
 
     try {
         const res = await fetch(url);
@@ -33,7 +34,7 @@ export async function findWord(word: string, context: BotContext, wordAction: 'd
             await sendResponse(context, jsonObject.title);
         }
     } catch (err: any) {
-        console.error("[Dictionary Error]", err.message);
+        console.error(LOG_PREFIX_DICTIONARY_ERROR, err.message);
         logError(err, {
             method: 'findWord',
             user_id: getUserId(context),

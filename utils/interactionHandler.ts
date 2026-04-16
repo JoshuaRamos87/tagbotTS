@@ -1,5 +1,13 @@
 import { Interaction } from 'discord.js';
-import { getBasicError } from './constants.js';
+import { 
+	ERROR_GENERIC, 
+	LOG_PREFIX_COMMAND_ERROR, 
+	LOG_PREFIX_BUTTON_ERROR, 
+	LOG_PREFIX_AUTOCOMPLETE_ERROR, 
+	LOG_PREFIX_FATAL_ERROR,
+	BUTTON_ID_RANDOM_IMAGE_RELOAD_PREFIX,
+	EMOJI_ERROR
+} from './constants/index.js';
 import { logError } from './database.js';
 
 /**
@@ -19,7 +27,7 @@ export async function handleInteraction(interaction: Interaction) {
 			try {
 				await command.execute(interaction);
 			} catch (error) {
-				console.error(`[Command Error] /${interaction.commandName}:`, error);
+				console.error(`${LOG_PREFIX_COMMAND_ERROR} /${interaction.commandName}:`, error);
                 
                 // Persistent database logging
                 logError(error, {
@@ -32,7 +40,7 @@ export async function handleInteraction(interaction: Interaction) {
                     }
                 });
 
-				const content = `❌ **${getBasicError()}**\n*(Check logs for technical details)*`;
+				const content = `${EMOJI_ERROR} **${ERROR_GENERIC}**\n*(Check logs for technical details)*`;
 				
 				if (interaction.replied || interaction.deferred) {
 					await interaction.followUp({ content, ephemeral: false }).catch(() => {});
@@ -42,7 +50,7 @@ export async function handleInteraction(interaction: Interaction) {
 			}
 		} else if (interaction.isButton()) {
 			// Handle dynamic buttons like image reloading
-			if (interaction.customId.startsWith('random_image_reload_')) {
+			if (interaction.customId.startsWith(BUTTON_ID_RANDOM_IMAGE_RELOAD_PREFIX)) {
 				const count = parseInt(interaction.customId.split('_').pop() || '1');
 				const randomimage = await import('../actions/randomimage.js');
 				
@@ -50,7 +58,7 @@ export async function handleInteraction(interaction: Interaction) {
 					await interaction.deferUpdate().catch(() => {});
 					await randomimage.getImage(interaction, count);
 				} catch (error) {
-					console.error("[Button Error]", error);
+					console.error(`${LOG_PREFIX_BUTTON_ERROR}`, error);
                     logError(error, {
                         method: 'button:random_image_reload',
                         user_id: interaction.user.id,
@@ -72,7 +80,7 @@ export async function handleInteraction(interaction: Interaction) {
 					await command.autocomplete(interaction);
 				}
 			} catch (error) {
-				console.error(`[Autocomplete Error] /${interaction.commandName}:`, error);
+				console.error(`${LOG_PREFIX_AUTOCOMPLETE_ERROR} /${interaction.commandName}:`, error);
                 logError(error, {
                     method: `autocomplete:${interaction.commandName}`,
                     user_id: interaction.user.id,
@@ -82,7 +90,7 @@ export async function handleInteraction(interaction: Interaction) {
 			}
 		}
 	} catch (fatalError) {
-		console.error("[FATAL INTERACTION ERROR]", fatalError);
+		console.error(`${LOG_PREFIX_FATAL_ERROR}`, fatalError);
         logError(fatalError, { method: 'interactionCreate:fatal' });
 	}
 }

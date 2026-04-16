@@ -3,6 +3,7 @@ import { Client, Collection, GatewayIntentBits } from "discord.js";
 import { loadCommands } from './utils/commandLoader.js';
 import { registerProcessHandlers } from './utils/errorHandler.js';
 import { handleInteraction } from './utils/interactionHandler.js';
+import { DISCORD_EVENT_INTERACTION_CREATE, DISCORD_EVENT_CLIENT_READY } from './utils/constants/index.js';
 
 /**
  * tagbotTS Entry Point
@@ -31,12 +32,13 @@ const client = new Client({
 registerProcessHandlers();
 await loadCommands(client);
 
-client.on("clientReady", () => {
+client.on(DISCORD_EVENT_CLIENT_READY, () => {
+  console.log('Hello :)');
   console.log(`Logged in as ${client.user?.tag}!`)
 });
 
 // Route all interactions to the central handler
-client.on("interactionCreate", handleInteraction);
+client.on(DISCORD_EVENT_INTERACTION_CREATE, handleInteraction);
 
 // Login to Discord
 client.login(process.env.TOKEN);

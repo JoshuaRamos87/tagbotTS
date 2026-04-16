@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Client, Collection } from "discord.js";
 import { pathToFileURL } from 'node:url';
+import { LOG_PREFIX_LOADER, LOG_PREFIX_WARNING } from './constants/index.js';
 
 /**
  * Dynamically loads all command files into the client.
@@ -16,7 +17,7 @@ export async function loadCommands(client: Client) {
     const commandsPath = path.join(import.meta.dirname, '..', 'commands');
     
     if (!fs.existsSync(commandsPath)) {
-        console.error(`[Loader] Commands directory not found at: ${commandsPath}`);
+        console.error(`${LOG_PREFIX_LOADER} Commands directory not found at: ${commandsPath}`);
         return;
     }
 
@@ -34,12 +35,12 @@ export async function loadCommands(client: Client) {
             if ('data' in command && 'execute' in command) {
                 client.commands.set(command.data.name, command);
             } else {
-                console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+                console.log(`${LOG_PREFIX_WARNING} The command at ${filePath} is missing a required "data" or "execute" property.`);
             }
         } catch (err) {
-            console.error(`[Loader] Failed to load command at ${filePath}:`, err);
+            console.error(`${LOG_PREFIX_LOADER} Failed to load command at ${filePath}:`, err);
         }
     }
     
-    console.log(`[Loader] Successfully loaded ${client.commands.size} commands.`);
+    console.log(`${LOG_PREFIX_LOADER} Successfully loaded ${client.commands.size} commands.`);
 }

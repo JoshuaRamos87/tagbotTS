@@ -4,6 +4,15 @@ import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonSty
 import * as db from '../utils/database.js';
 import { BotContext } from '../utils/types.js';
 import { sendResponse, getUserId } from '../utils/response.js';
+import { 
+    LOG_PREFIX_SYNC, 
+    LOG_PREFIX_LOADER, 
+    EMOJI_RELOAD, 
+    BUTTON_ID_RANDOM_IMAGE_RELOAD_PREFIX, 
+    EMBED_TITLE_SUPER_CRAWLER_INIT, 
+    EMBED_TITLE_SUPER_CRAWLER_SCAN, 
+    EMBED_TITLE_SUPER_CRAWLER_COMPLETE 
+} from '../utils/constants/index.js';
 
 // Track active syncs to avoid overlapping
 const activeSyncs = new Set<string>();
@@ -31,7 +40,7 @@ export async function getImage(context: BotContext, count = 1) {
 
         const lastId = db.getLastImageId(channelID);
         if (lastId) {
-            syncNewImages(context, channelID, lastId).catch((err: any) => console.error("Background sync error:", err.message));
+            syncNewImages(context, channelID, lastId).catch((err: any) => console.error(`${LOG_PREFIX_SYNC} Background sync error:`, err.message));
         }
     } else {
         await fetchAllImages(context, channelID, count);
@@ -60,7 +69,7 @@ async function refreshImageUrl(context: BotContext, channelID: string, img: db.I
             }
         }
     } catch (err: any) {
-        console.error(`Failed to refresh URL for message ${img.message_id}:`, err.message);
+        console.error(`${LOG_PREFIX_LOADER} Failed to refresh URL for message ${img.message_id}:`, err.message);
     }
     return img;
 }
@@ -82,10 +91,10 @@ async function deliverImages(context: BotContext, channelID: string, images: db.
         }
 
         const reloadButton = new ButtonBuilder()
-            .setCustomId(`random_image_reload_${images.length}`)
+            .setCustomId(`${BUTTON_ID_RANDOM_IMAGE_RELOAD_PREFIX}${images.length}`)
             .setLabel('Reload')
             .setStyle(ButtonStyle.Secondary)
-            .setEmoji('🔄');
+            .setEmoji(EMOJI_RELOAD);
         
         row.addComponents(reloadButton);
         
@@ -118,10 +127,10 @@ async function deliverImages(context: BotContext, channelID: string, images: db.
         });
 
         const reloadButton = new ButtonBuilder()
-            .setCustomId(`random_image_reload_${images.length}`)
+            .setCustomId(`${BUTTON_ID_RANDOM_IMAGE_RELOAD_PREFIX}${images.length}`)
             .setLabel('Reload')
             .setStyle(ButtonStyle.Secondary)
-            .setEmoji('🔄');
+            .setEmoji(EMOJI_RELOAD);
 
         row.addComponents(reloadButton);
 
@@ -137,7 +146,7 @@ async function syncNewImages(context: BotContext, channelID: string, lastId: str
     activeSyncs.add(channelID);
 
     try {
-        console.log(`[SYNC] Starting background image sync for channel ${channelID} after message ${lastId}...`);
+        console.log(`${LOG_PREFIX_SYNC} Starting background image sync for channel ${channelID} after message ${lastId}...`);
         const channel = await context.client.channels.fetch(channelID) as TextBasedChannel;
         let newImages: { author: string, url: string, message_id: string }[] = [];
         let currentAfter = lastId;
@@ -165,7 +174,7 @@ async function syncNewImages(context: BotContext, channelID: string, lastId: str
             if (newImages.length >= 100) {
                 const inserted = db.saveImages(channelID, newImages);
                 totalSynced += inserted;
-                console.log(`[SYNC] Image batch processed: ${totalSynced} actual new images saved...`);
+                console.log(`${LOG_PREFIX_SYNC} Image batch processed: ${totalSynced} actual new images saved...`);
                 newImages = [];
             }
         }
@@ -176,18 +185,18 @@ async function syncNewImages(context: BotContext, channelID: string, lastId: str
         }
         
         if (totalSynced > 0) {
-            console.log(`[SYNC] Finished image sync for ${channelID}: +${totalSynced} actual new images.`);
+            console.log(`${LOG_PREFIX_SYNC} Finished image sync for ${channelID}: +${totalSynced} actual new images.`);
         } else {
-            console.log(`[SYNC] Image sync for ${channelID} complete: No new unique images found.`);
+            console.log(`${LOG_PREFIX_SYNC} Image sync for ${channelID} complete: No new unique images found.`);
         }
     } catch (err: any) {
-        console.error(`[SYNC] Image sync error for ${channelID}:`, err.message);
+        console.error(`${LOG_PREFIX_SYNC} Image sync error for ${channelID}:`, err.message);
         db.logError(err, {
             method: 'syncNewImages',
             channel_id: channelID
         });
     } finally {
-        console.log(`[SYNC] Background process ended for channel ${channelID}.`);
+        console.log(`${LOG_PREFIX_SYNC} Background process ended for channel ${channelID}.`);
         activeSyncs.delete(channelID);
     }
 }
@@ -209,7 +218,7 @@ async function fetchAllImages(context: BotContext, channelID: string, initialCou
 
         const initialEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
-            .setTitle("🚀 Super-Crawler Initialized")
+            .setTitle(EMBED_TITLE_SUPER_CRAWLER_INIT)
             .setDescription(`Building a massive index for <#${channelID}>.\n\n**Workers:** ⚙️ Starting ${numWorkers} parallel crawlers...`);
 
         const response = await sendResponse(context, { embeds: [initialEmbed] });
@@ -218,7 +227,7 @@ async function fetchAllImages(context: BotContext, channelID: string, initialCou
         const progressInterval = setInterval(async () => {
             const updateEmbed = new EmbedBuilder()
                 .setColor(0x0099FF)
-                .setTitle("🚀 Super-Crawler Scanning...")
+                .setTitle(EMBED_TITLE_SUPER_CRAWLER_SCAN)
                 .setDescription(`Building an image index for <#${channelID}>.\n\n**New Images Saved:** 🖼️ **${totalSaved.toLocaleString()}**\n**Active Workers:** ⚙️ ${activeWorkers}/${numWorkers}`);
 
             try {
@@ -250,7 +259,7 @@ async function fetchAllImages(context: BotContext, channelID: string, initialCou
         if (images.length > 0) {
             const successEmbed = new EmbedBuilder()
                 .setColor(0x00FF00)
-                .setTitle("✅ Super-Crawl Complete")
+                .setTitle(EMBED_TITLE_SUPER_CRAWLER_COMPLETE)
                 .setDescription(`Finished indexing **${totalSaved.toLocaleString()}** unique images in <#${channelID}>!`);
             
             if (message && message.edit) await message.edit({ embeds: [successEmbed] });

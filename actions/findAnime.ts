@@ -1,9 +1,10 @@
 import { BotContext } from '../utils/types.js';
 import { sendResponse, getUserId } from '../utils/response.js';
 import { logError } from '../utils/database.js';
+import { API_TRACE_MOE_BASE_URL, LOG_PREFIX_ANIME_ERROR, ERROR_ANIME_NOT_FOUND } from '../utils/constants/index.js';
 
 export async function findAnime(URL: string, flags: any, context: BotContext) {
-    const url = `https://api.trace.moe/search?anilistInfo&url=${encodeURIComponent(URL)}`;
+    const url = `${API_TRACE_MOE_BASE_URL}${encodeURIComponent(URL)}`;
 
     try {
         const res = await fetch(url);
@@ -15,7 +16,7 @@ export async function findAnime(URL: string, flags: any, context: BotContext) {
         const jsonObject: any = await res.json();
         displayAnime(jsonObject, context, flags);
     } catch (err: any) {
-        console.error("[findAnime Error]", err.message);
+        console.error(LOG_PREFIX_ANIME_ERROR, err.message);
         logError(err, {
             method: 'findAnime',
             user_id: getUserId(context),
@@ -33,7 +34,7 @@ function displayAnime(jsonObject: any, context: BotContext, flags: any) {
         length = 1;
 
     if (!jsonObject.result || jsonObject.result.length === 0) {
-        sendResponse(context, "No anime found for this image.");
+        sendResponse(context, ERROR_ANIME_NOT_FOUND);
         return;
     }
 
