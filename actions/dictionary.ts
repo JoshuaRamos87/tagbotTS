@@ -1,98 +1,82 @@
-import http from "https";
 import { BotContext } from '../utils/types.js';
 import { sendResponse } from '../utils/response.js';
 
-export function findWord(word: string, context: BotContext, wordAction: 'def' | 'syn') {
-    let options = {
-        "method": "GET",
-        "hostname": "api.dictionaryapi.dev",
-        "path": '/api/v2/entries/en_US/',
-    };
-    options["path"] += word
-    let req = http.request(options, function (res) {
-    let chunks: Buffer[] = [];
-    
-    res.on("data", function (chunk) {
-        chunks.push(chunk);
-    });
-    res.on("end", function () {
-            let body = Buffer.concat(chunks);
-            let jsonObject = JSON.parse(body.toString())  
+export async function findWord(word: string, context: BotContext, wordAction: 'def' | 'syn') {
+    const cleanedWord = word.replace(/%20/g, ' ').trim();
+    const url = `https://api.dictionaryapi.dev/api/v2/entries/en_US/${encodeURIComponent(cleanedWord)}`;
 
-        if(jsonObject["title"] === "No Definitions Found")
-        {
-            sendResponse(context, jsonObject["title"]);
-            return
+    try {
+        const res = await fetch(url);
+        
+        if (!res.ok) {
+            if (res.status === 404) {
+                await sendResponse(context, `No definitions found for **${cleanedWord}**`);
+            } else {
+                await sendResponse(context, `Error fetching data: ${res.statusText}`);
+            }
+            return;
         }
 
-            try
-            {
-            switch(wordAction)
-            {
-                case "def": displayDef(word, jsonObject, context); break;
-                case "syn": displaySyn(word, jsonObject, context); break;
+        const jsonObject: any = await res.json();
+
+        if (Array.isArray(jsonObject) && jsonObject.length > 0) {
+            switch (wordAction) {
+                case "def": 
+                    displayDef(cleanedWord, jsonObject, context); 
+                    break;
+                case "syn": 
+                    displaySyn(cleanedWord, jsonObject, context); 
+                    break;
             }
-            }catch(err){}
-        });
-    });
-    req.end();
+        } else if (jsonObject.title === "No Definitions Found") {
+            await sendResponse(context, jsonObject.title);
+        }
+    } catch (err: any) {
+        console.error("[Dictionary Error]", err.message);
+        await sendResponse(context, "An error occurred while looking up the word.");
+    }
 }
 
-function displayDef(word: string, jsonObject: any, context: BotContext)
-{
-    let str = `**Word: ${word.replace(/%20/g, ' ').trim()}**\n\n`
-    for(let l = 0; l < Object.keys(jsonObject).length; l++)
-        for(let i = 0; i < Object.keys(jsonObject[l]["meanings"]).length; i++)
-        {
-            str += "**" + jsonObject[l]["meanings"][i]["partOfSpeech"] + "**" + '\n';
-            for(let j = 0; j < Object.keys(jsonObject[l]["meanings"][i]["definitions"]).length; j++)
-            {
-                str += "-  " + jsonObject[l]["meanings"][i]["definitions"][j]["definition"] + '\n'
+function displayDef(word: string, jsonObject: any[], context: BotContext) {
+    let str = `**Word: ${word}**\n\n`;
+    for (const entry of jsonObject) {
+        for (const meaning of entry.meanings) {
+            str += `**${meaning.partOfSpeech}**\n`;
+            for (const definition of meaning.definitions) {
+                str += `-  ${definition.definition}\n`;
             }
         }
+    }
     sendResponse(context, str);
 }
 
-function displaySyn(word: string, jsonObject: any, context: BotContext)
-{
-    if(jsonObject["title"] === "No Definitions Found")
-    {
-        sendResponse(context, jsonObject["title"]);
-        return;
-    }
+function displaySyn(word: string, jsonObject: any[], context: BotContext) {
+    const synonyms = new Set<string>();
 
-    const cleanedWord = word.replace(/%20/g, ' ').trim();
-    let synonyms = new Set<string>();
-
-    for(let l = 0; l < Object.keys(jsonObject).length; l++)
-    {
-        const entry = jsonObject[l];
-        for(let i = 0; i < Object.keys(entry["meanings"]).length; i++)
-        {
-            const meaning = entry["meanings"][i];
-            
+    for (const entry of jsonObject) {
+        for (const meaning of entry.meanings) {
             // Collect synonyms from meaning level
-            if (meaning["synonyms"]) {
-                meaning["synonyms"].forEach((s: string) => synonyms.add(s));
+            if (Array.isArray(meaning.synonyms)) {
+                meaning.synonyms.forEach((s: string) => synonyms.add(s));
             }
 
             // Collect synonyms from definition level
-            for(let j = 0; j < Object.keys(meaning["definitions"]).length; j++)
-            {
-                const definition = meaning["definitions"][j];
-                if (definition["synonyms"]) {
-                    definition["synonyms"].forEach((s: string) => synonyms.add(s));
+            if (Array.isArray(meaning.definitions)) {
+                for (const definition of meaning.definitions) {
+                    if (Array.isArray(definition.synonyms)) {
+                        definition.synonyms.forEach((s: string) => synonyms.add(s));
+                    }
                 }
             }
         }
     }
 
-    if(synonyms.size === 0) {
-        sendResponse(context, `no synonym found for **${cleanedWord}**`);
+    if (synonyms.size === 0) {
+        sendResponse(context, `No synonyms found for **${word}**`);
     } else {
-        let str = `**Synonyms for: ${cleanedWord}**\n\n`;
+        let str = `**Synonyms for: ${word}**\n\n`;
         synonyms.forEach(s => {
-            str += "- " + s + '\n';
+            str += `- ${s}\n`;
         });
         sendResponse(context, str);
     }

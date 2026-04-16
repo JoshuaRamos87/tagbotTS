@@ -1,7 +1,7 @@
 import { BotContext } from './types.js';
 import { ChatInputCommandInteraction, Message, ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 
-export async function sendResponse(context: BotContext, content: string | { content: string, embeds?: any[], components?: any[], files?: any[], ephemeral?: boolean }) {
+export async function sendResponse(context: BotContext, content: string | { content?: string, embeds?: any[], components?: any[], files?: any[], ephemeral?: boolean }) {
     const payload = typeof content === 'string' ? { content } : content;
 
     if (context instanceof Message) {

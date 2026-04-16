@@ -15,6 +15,9 @@ import ffmpegPath from 'ffmpeg-static';
 import { ChatInputCommandInteraction, Message, GuildMember, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { Readable } from 'node:stream';
 
+import { getBasedError } from '../utils/constants.js';
+import { sendResponse } from '../utils/response.js';
+
 let yt: Innertube;
 
 // Guild-specific state management
@@ -28,19 +31,6 @@ interface GuildState {
     collector: any | null;
 }
 const guildStates = new Map<string, GuildState>();
-
-const BASED_ERRORS = [
-    "Something went wrong, but we're still based.",
-    "The code is tripping but the bot is still dripping.",
-    "Error 404: Skill not found. Just kidding, the bot is fine.",
-    "The bot took a hit, but it's built different. Still standing.",
-    "A minor setback for a major comeback. Bot's still up.",
-    "Logic failed, but the vibe remains untouched."
-];
-
-function getBasedError() {
-    return BASED_ERRORS[Math.floor(Math.random() * BASED_ERRORS.length)];
-}
 
 async function getYouTube() {
     if (!yt) {
@@ -57,25 +47,6 @@ function formatTime(ms: number) {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
-
-async function sendResponse(context: any, content: any) {
-    try {
-        if (context.replied !== undefined) {
-            if (context.deferred || context.replied) {
-                return await context.editReply(content);
-            }
-            return await context.reply(content);
-        }
-        if (context.channel && typeof context.channel.send === 'function') {
-            return await context.channel.send(content);
-        }
-    } catch (err: any) {
-        if (err.code === 10062 && context.followUp) {
-            try { return await context.followUp(content); } catch (e) {}
-        }
-        console.error("[Response Error]", err.message);
-    }
 }
 
 export async function stopPlayback(context: any) {

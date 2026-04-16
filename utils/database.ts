@@ -94,11 +94,26 @@ export function getLastImageId(channelId: string): string | undefined {
 }
 
 export function getRandomImage(channelId: string): ImageRecord | undefined {
-    return db.prepare('SELECT * FROM images WHERE channel_id = ? ORDER BY RANDOM() LIMIT 1').get(channelId) as ImageRecord | undefined;
+    const countResult = db.prepare('SELECT count(*) as count FROM images WHERE channel_id = ?').get(channelId) as { count: number };
+    if (countResult.count === 0) return undefined;
+    
+    const randomOffset = Math.floor(Math.random() * countResult.count);
+    return db.prepare('SELECT * FROM images WHERE channel_id = ? LIMIT 1 OFFSET ?').get(channelId, randomOffset) as ImageRecord | undefined;
 }
 
 export function getRandomImages(channelId: string, count: number): ImageRecord[] {
-    return db.prepare('SELECT * FROM images WHERE channel_id = ? ORDER BY RANDOM() LIMIT ?').all(channelId, count) as ImageRecord[];
+    const ids = db.prepare('SELECT id FROM images WHERE channel_id = ?').all(channelId) as { id: number }[];
+    if (ids.length === 0) return [];
+    
+    // Shuffle ids
+    for (let i = ids.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    
+    const selectedIds = ids.slice(0, count).map(row => row.id);
+    const placeholders = selectedIds.map(() => '?').join(',');
+    return db.prepare(`SELECT * FROM images WHERE id IN (${placeholders})`).all(...selectedIds) as ImageRecord[];
 }
 
 export function clearChannelImages(channelId: string) {
@@ -138,11 +153,26 @@ export function getLastTweetId(channelId: string): string | undefined {
 }
 
 export function getRandomTweet(channelId: string): TweetRecord | undefined {
-    return db.prepare('SELECT * FROM tweets WHERE channel_id = ? ORDER BY RANDOM() LIMIT 1').get(channelId) as TweetRecord | undefined;
+    const countResult = db.prepare('SELECT count(*) as count FROM tweets WHERE channel_id = ?').get(channelId) as { count: number };
+    if (countResult.count === 0) return undefined;
+    
+    const randomOffset = Math.floor(Math.random() * countResult.count);
+    return db.prepare('SELECT * FROM tweets WHERE channel_id = ? LIMIT 1 OFFSET ?').get(channelId, randomOffset) as TweetRecord | undefined;
 }
 
 export function getRandomTweets(channelId: string, count: number): TweetRecord[] {
-    return db.prepare('SELECT * FROM tweets WHERE channel_id = ? ORDER BY RANDOM() LIMIT ?').all(channelId, count) as TweetRecord[];
+    const ids = db.prepare('SELECT id FROM tweets WHERE channel_id = ?').all(channelId) as { id: number }[];
+    if (ids.length === 0) return [];
+    
+    // Shuffle ids
+    for (let i = ids.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    
+    const selectedIds = ids.slice(0, count).map(row => row.id);
+    const placeholders = selectedIds.map(() => '?').join(',');
+    return db.prepare(`SELECT * FROM tweets WHERE id IN (${placeholders})`).all(...selectedIds) as TweetRecord[];
 }
 
 export function clearChannelTweets(channelId: string) {

@@ -3,7 +3,7 @@ import path from 'path';
 import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, TextBasedChannel, Message } from 'discord.js';
 import * as db from '../utils/database.js';
 import { BotContext } from '../utils/types.js';
-import { sendResponse as commonSendResponse } from '../utils/response.js';
+import { sendResponse } from '../utils/response.js';
 
 // Track active syncs to avoid overlapping
 const activeSyncs = new Set<string>();
@@ -14,39 +14,12 @@ function isImage(url: string) {
     return ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'].includes(ext || '');
 }
 
-// Migrate existing JSON data to SQLite if available
-function migrateJsonToDb(channelID: string) {
-    const jsonPath = path.join('./data', channelID, 'images.json');
-    if (fs.existsSync(jsonPath)) {
-        try {
-            const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-            const imagesToSave = Object.values(data).map((item: any) => ({
-                author: item.author,
-                url: item.image
-            }));
-            
-            if (imagesToSave.length > 0) {
-                db.saveImages(channelID, imagesToSave);
-                console.log(`Migrated ${imagesToSave.length} images for channel ${channelID} to SQLite.`);
-            }
-            
-            fs.renameSync(jsonPath, jsonPath + '.migrated');
-        } catch (err) {
-            console.error(`Error migrating JSON for channel ${channelID}:`, err);
-        }
-    }
-}
-
 export async function getImage(context: BotContext, count = 1) {
     if (!context.channel) return;
     let channelID = context.channel.id;
 
     if (context.channel.isThread()) {
         channelID = context.channel.parentId as string;
-    }
-
-    if (!db.hasImages(channelID)) {
-        migrateJsonToDb(channelID);
     }
 
     if (db.hasImages(channelID)) {
@@ -156,30 +129,6 @@ async function deliverImages(context: BotContext, channelID: string, images: db.
         if (row.components.length > 0) payload.components = [row];
 
         await sendResponse(context, payload);
-    }
-}
-
-async function sendResponse(context: BotContext, content: any) {
-    const createdTimestamp = (context as any).createdTimestamp;
-    const isExpired = createdTimestamp && (Date.now() - createdTimestamp > 14 * 60 * 1000);
-
-    if ('reply' in context && !isExpired) {
-        try {
-            const interaction = context as any;
-            if (interaction.deferred && !interaction.replied) {
-                return await interaction.editReply(content);
-            }
-            if (interaction.replied || interaction.deferred) {
-                return await interaction.followUp(content);
-            }
-            return await interaction.reply(content);
-        } catch (err: any) {
-            console.error("Interaction response failed, falling back to channel send:", err.message);
-        }
-    }
-    
-    if (context.channel) {
-        return await (context.channel as any).send(content);
     }
 }
 

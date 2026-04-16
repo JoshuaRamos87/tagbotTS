@@ -3,39 +3,13 @@ import path from 'path';
 import { SnowflakeUtil, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, TextBasedChannel, Message } from 'discord.js';
 import * as db from '../utils/database.js';
 import { BotContext } from '../utils/types.js';
+import { sendResponse } from '../utils/response.js';
 
 const activeSyncs = new Set<string>();
-
-// Migrate existing JSON data to SQLite if available
-function migrateJsonToDb(channelID: string) {
-    const jsonPath = path.join('./data', channelID, 'tweets.json');
-    if (fs.existsSync(jsonPath)) {
-        try {
-            const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-            const tweetsToSave = Object.values(data).map((item: any) => ({
-                author: item.author,
-                content: item.tweet
-            }));
-            
-            if (tweetsToSave.length > 0) {
-                db.saveTweets(channelID, tweetsToSave);
-                console.log(`Migrated ${tweetsToSave.length} tweets for channel ${channelID} to SQLite.`);
-            }
-            
-            fs.renameSync(jsonPath, jsonPath + '.migrated');
-        } catch (err) {
-            console.error(`Error migrating JSON for channel ${channelID}:`, err);
-        }
-    }
-}
 
 export async function getTweet(context: BotContext, count = 1) {
     if (!context.channel) return;
     const channelID = context.channel.id;
-
-    if (!db.hasTweets(channelID)) {
-        migrateJsonToDb(channelID);
-    }
 
     if (db.hasTweets(channelID)) {
         const tweets = db.getRandomTweets(channelID, count);
@@ -125,30 +99,6 @@ async function deliverTweets(context: BotContext, channelID: string, tweets: db.
         if (row.components.length > 0) payload.components = [row];
 
         await sendResponse(context, payload);
-    }
-}
-
-async function sendResponse(context: BotContext, content: any) {
-    const createdTimestamp = (context as any).createdTimestamp;
-    const isExpired = createdTimestamp && (Date.now() - createdTimestamp > 14 * 60 * 1000);
-
-    if ('reply' in context && !isExpired) {
-        try {
-            const interaction = context as any;
-            if (interaction.deferred && !interaction.replied) {
-                return await interaction.editReply(content);
-            }
-            if (interaction.replied || interaction.deferred) {
-                return await interaction.followUp(content);
-            }
-            return await interaction.reply(content);
-        } catch (err: any) {
-            console.error("Interaction response failed, falling back to channel send:", err.message);
-        }
-    }
-    
-    if (context.channel) {
-        return await (context.channel as any).send(content);
     }
 }
 

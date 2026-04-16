@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Client, Collection, GatewayIntentBits } from "discord.js";
 import { pathToFileURL } from 'node:url';
+import { getBasedError } from './utils/constants.js';
 
 declare module 'discord.js' {
   export interface Client {
@@ -38,21 +39,6 @@ for (const file of commandFiles) {
 }
 
 console.log('hello')
-
-client.login(mySecret);
-
-const BASED_ERRORS = [
-	"Something went wrong, but we're still based.",
-	"The code is tripping but the bot is still dripping.",
-	"Error 404: Skill not found. Just kidding, the bot is fine.",
-	"The bot took a hit, but it's built different. Still standing.",
-	"A minor setback for a major comeback. Bot's still up.",
-	"Logic failed, but the vibe remains untouched."
-];
-
-function getBasedError() {
-	return BASED_ERRORS[Math.floor(Math.random() * BASED_ERRORS.length)];
-}
 
 // Global Process Error Handling
 process.on('unhandledRejection', (reason, promise) => {
@@ -122,3 +108,5 @@ client.on("interactionCreate", async interaction => {
 		console.error("[FATAL INTERACTION ERROR]", fatalError);
 	}
 });
+
+client.login(mySecret);
