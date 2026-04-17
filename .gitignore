@@ -110,4 +110,7 @@ dist
 # TernJS port file
 .tern-port
 
+# Gemini Security
+.gemini_security/
+
 
