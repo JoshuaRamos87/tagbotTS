@@ -4,6 +4,7 @@ import { loadCommands } from './utils/commandLoader.js';
 import { registerProcessHandlers } from './utils/errorHandler.js';
 import { handleInteraction } from './utils/interactionHandler.js';
 import { DISCORD_EVENT_INTERACTION_CREATE, DISCORD_EVENT_CLIENT_READY } from './utils/constants/index.js';
+import './utils/types.js';
 
 /**
  * tagbotTS Entry Point
@@ -12,17 +13,9 @@ import { DISCORD_EVENT_INTERACTION_CREATE, DISCORD_EVENT_CLIENT_READY } from './
  * and error handler registration. The core logic is distributed across /utils and /actions.
  */
 
-// Extend Discord Client type to include custom commands collection
-declare module 'discord.js' {
-  export interface Client {
-    commands: Collection<string, any>;
-  }
-}
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates
   ]

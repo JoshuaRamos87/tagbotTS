@@ -3,6 +3,7 @@ import path from 'node:path';
 import { Client, Collection } from "discord.js";
 import { pathToFileURL } from 'node:url';
 import { LOG_PREFIX_LOADER, LOG_PREFIX_WARNING } from './constants/index.js';
+import './types.js';
 
 /**
  * Dynamically loads all command files into the client.

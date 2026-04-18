@@ -9,6 +9,7 @@ import {
 	EMOJI_ERROR
 } from './constants/index.js';
 import { logError } from './database.js';
+import './types.js';
 
 /**
  * Main interaction handler that routes Discord events (commands, buttons, autocomplete)
@@ -17,7 +18,7 @@ import { logError } from './database.js';
 export async function handleInteraction(interaction: Interaction) {
 	try {
 		if (interaction.isChatInputCommand()) {
-			const command = (interaction.client as any).commands.get(interaction.commandName);
+			const command = interaction.client.commands.get(interaction.commandName);
 
 			if (!command) {
 				console.error(`No command matching ${interaction.commandName} was found.`);
@@ -68,7 +69,7 @@ export async function handleInteraction(interaction: Interaction) {
 				}
 			}
 		} else if (interaction.isAutocomplete()) {
-			const command = (interaction.client as any).commands.get(interaction.commandName);
+			const command = interaction.client.commands.get(interaction.commandName);
 
 			if (!command) {
 				console.error(`No command matching ${interaction.commandName} was found.`);
