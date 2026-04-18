@@ -44,6 +44,29 @@ export function getQueue(guildId: string): string {
 }
 
 /**
+ * Fetches titles for a list of YouTube URLs in parallel.
+ * Limited to first 10 for performance and interaction limits.
+ */
+export async function getTitles(urls: string[]): Promise<{ title: string, url: string }[]> {
+    const youtube = await getYouTube();
+    const limit = urls.slice(0, 10);
+    
+    return Promise.all(limit.map(async (url) => {
+        try {
+            const idMatch = url.match(/(?:v=|\/|watchv=|^)([a-zA-Z0-9_-]{11})(?:&|$|\?)/);
+            const videoId = idMatch ? idMatch[1] : url;
+            const info = await youtube.getBasicInfo(videoId);
+            return { 
+                title: info.basic_info.title || "Unknown Title", 
+                url: `https://www.youtube.com/watch?v=${videoId}` 
+            };
+        } catch {
+            return { title: "Invalid or Private Video", url };
+        }
+    }));
+}
+
+/**
  * Updates the queue for a guild and starts playback if idle.
  * @returns boolean - true if playback was started, false if just the queue was updated.
  */
@@ -555,8 +578,17 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
                     // No more items, cleanup
                     guildStates.delete(guildId);
                     context.client.user?.setActivity(null);
+
+                    // Clean up the last embed (remove buttons) but keep the content
                     if (message && message.editable) {
-                        message.edit({ content: RESPONSE_FINISHED_PLAYING, embeds: [], components: [] }).catch(() => {});
+                        message.edit({ components: [] }).catch(() => {});
+                    }
+
+                    // Send a fresh message to the channel instead of overwriting the embed
+                    if (context.channel && 'send' in context.channel) {
+                        await context.channel.send(RESPONSE_FINISHED_PLAYING).catch(() => {});
+                    } else {
+                        await sendResponse(context, RESPONSE_FINISHED_PLAYING).catch(() => {});
                     }
                 }
             }

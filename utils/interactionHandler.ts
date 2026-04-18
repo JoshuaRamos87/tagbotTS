@@ -1,4 +1,4 @@
-import { Interaction } from 'discord.js';
+import { Interaction, EmbedBuilder } from 'discord.js';
 import { 
 	ERROR_GENERIC, 
 	LOG_PREFIX_COMMAND_ERROR, 
@@ -97,18 +97,41 @@ export async function handleInteraction(interaction: Interaction) {
 				const rawUrls = interaction.fields.getTextInputValue(INPUT_ID_PLAY_QUEUE_URLS);
 				const urls = rawUrls.split('\n').map(u => u.trim()).filter(u => u.length > 0);
 				
-				const { updateQueue } = await import('../actions/play.js');
+				const { updateQueue, getTitles } = await import('../actions/play.js');
 				
 				try {
+					// We must acknowledge the modal submit immediately or defer it.
+					// Since fetching titles takes time, we defer.
+					await interaction.deferReply({ ephemeral: false }); 
+
 					const playbackStarted = await updateQueue(interaction.guildId || "", urls, interaction);
 					
-					// Only reply if playback didn't start (if it started, playYouTube already sent the "Now Playing" embed)
-					if (!playbackStarted) {
-						await interaction.reply({ content: RESPONSE_QUEUE_UPDATED, ephemeral: true });
+					// Fetch titles for a "Compact Queue Summary"
+					const metadata = await getTitles(urls);
+					const queueList = metadata.map((m, i) => `${i + 1}. [${m.title}](${m.url})`).join('\n');
+
+					const summaryEmbed = new EmbedBuilder()
+						.setColor(0x00AE86)
+						.setTitle('Queue Updated')
+						.setDescription(queueList || 'No valid links found.')
+						.setFooter({ text: `Total items: ${urls.length}` });
+
+					// If playback started, the "Now Playing" embed was already sent as the first response.
+					// We use editReply/followUp to add the summary.
+					if (playbackStarted) {
+						await interaction.followUp({ embeds: [summaryEmbed] });
+					} else {
+						await interaction.editReply({ embeds: [summaryEmbed] });
 					}
 				} catch (error: any) {
 					console.error(`[Modal Error] Failed to update queue:`, error);
-					await interaction.reply({ content: `${EMOJI_ERROR} Failed to update queue: ${error.message}`, ephemeral: true });
+					// If we already deferred, we must use editReply for the error
+					const errorContent = `${EMOJI_ERROR} Failed to update queue: ${error.message}`;
+					if (interaction.deferred || interaction.replied) {
+						await interaction.editReply({ content: errorContent });
+					} else {
+						await interaction.reply({ content: errorContent, ephemeral: true });
+					}
 				}
 			}
 		}
