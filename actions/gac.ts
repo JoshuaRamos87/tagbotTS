@@ -11,6 +11,7 @@ import {
     LOG_PREFIX_GAC_ERROR, 
     ERROR_GAC_NOT_FOUND 
 } from '../utils/constants/index.js';
+import { safeFetch } from '../utils/validation.js';
 
 interface GelbooruTag {
     id: number;
@@ -33,7 +34,8 @@ interface GelbooruPost {
  */
 async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer, contentType: string | null } | null> {
     try {
-        const response = await fetch(url, {
+        // Use safeFetch to prevent SSRF (DNS rebinding and redirect bypasses)
+        const response = await safeFetch(url, {
             headers: {
                 'Referer': API_GELBOORU_REFERER,
                 'User-Agent': BROWSER_USER_AGENT
@@ -72,7 +74,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction) {
             url += `&api_key=${apiKey}&user_id=${userId}`;
         }
 
-        const response = await fetch(url, {
+        const response = await safeFetch(url, {
             headers: {
                 'User-Agent': BROWSER_USER_AGENT
             }
@@ -127,7 +129,7 @@ export async function gac(interaction: ChatInputCommandInteraction) {
             url += `&api_key=${apiKey}&user_id=${userId}`;
         }
 
-        const response = await fetch(url, {
+        const response = await safeFetch(url, {
             headers: {
                 'User-Agent': BROWSER_USER_AGENT
             }

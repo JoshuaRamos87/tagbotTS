@@ -2,12 +2,16 @@ import { BotContext } from '../utils/types.js';
 import { sendResponse, getUserId } from '../utils/response.js';
 import { logError } from '../utils/database.js';
 import { API_TRACE_MOE_BASE_URL, LOG_PREFIX_ANIME_ERROR, ERROR_ANIME_NOT_FOUND } from '../utils/constants/index.js';
+import { validateImageUrl, safeFetch } from '../utils/validation.js';
 
 export async function findAnime(URL: string, flags: any, context: BotContext) {
-    const url = `${API_TRACE_MOE_BASE_URL}${encodeURIComponent(URL)}`;
-
     try {
-        const res = await fetch(url);
+        // Validate user-supplied URL to prevent SSRF (defense in depth)
+        const validatedURL = await validateImageUrl(URL);
+        const url = `${API_TRACE_MOE_BASE_URL}${encodeURIComponent(validatedURL)}`;
+
+        // Use safeFetch for the API call itself
+        const res = await safeFetch(url);
         
         if (!res.ok) {
             throw new Error(`trace.moe API error: ${res.status} ${res.statusText}`);

@@ -10,6 +10,7 @@ import {
     ERROR_SAUCE_NOT_FOUND, 
     ERROR_SAUCE_IQDB_FAILED 
 } from '../utils/constants/index.js';
+import { safeFetch } from '../utils/validation.js';
 
 // Create a custom search function with a browser-like User-Agent
 const customSearchPic = makeSearchFunc({
@@ -22,9 +23,9 @@ export async function findSauce(context: BotContext, URL: string, flags: any) {
     await sendResponse(context, "Loading results...");
 
     try {
-        // Download the image using native fetch (Node 22+)
-        console.log(`${LOG_PREFIX_SAUCE} Downloading image...`);
-        const response = await fetch(URL, {
+        // Use safeFetch to prevent SSRF (DNS rebinding and redirect bypasses)
+        console.log(`${LOG_PREFIX_SAUCE} Downloading image from ${URL}...`);
+        const response = await safeFetch(URL, {
             headers: {
                 "User-Agent": BROWSER_USER_AGENT
             }
