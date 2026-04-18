@@ -59,13 +59,60 @@ async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer, contentT
     }
 }
 
+/**
+ * In-memory cache for autocomplete results to prevent rate limiting.
+ */
+const autocompleteCache = new Map<string, { tags: GelbooruTag[], timestamp: number }>();
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
 export async function handleAutocomplete(interaction: AutocompleteInteraction) {
-    const focusedValue = interaction.options.getFocused();
-    if (!focusedValue || focusedValue.length < 2) {
+    const focusedValue = interaction.options.getFocused().toLowerCase().trim();
+    
+    // Minimum 3 characters to reduce API noise
+    if (!focusedValue || focusedValue.length < 3) {
         return interaction.respond([]);
     }
 
+    // Periodic cache cleanup (5% chance)
+    if (Math.random() < 0.05) {
+        const now = Date.now();
+        for (const [key, value] of autocompleteCache.entries()) {
+            if (now - value.timestamp > CACHE_TTL) {
+                autocompleteCache.delete(key);
+            }
+        }
+    }
+
     try {
+        // 1. Check exact match in cache
+        const cached = autocompleteCache.get(focusedValue);
+        if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+            console.log(`[GAC Autocomplete] Cache HIT for "${focusedValue}"`);
+            return interaction.respond(formatAutocompleteChoices(cached.tags));
+        }
+
+        // 2. Prefix Subset Filtering: If we have a cached result for a prefix,
+        // and that prefix returned < 25 items (meaning it was a complete set), we can filter locally.
+        // We look for the longest matching prefix for better accuracy.
+        let longestPrefixKey = '';
+        for (const key of autocompleteCache.keys()) {
+            if (focusedValue.startsWith(key) && key.length > longestPrefixKey.length) {
+                const val = autocompleteCache.get(key);
+                if (val && val.tags.length < 25 && (Date.now() - val.timestamp < CACHE_TTL)) {
+                    longestPrefixKey = key;
+                }
+            }
+        }
+
+        if (longestPrefixKey) {
+            const cachedVal = autocompleteCache.get(longestPrefixKey)!;
+            const filtered = cachedVal.tags.filter(tag => tag.name.toLowerCase().includes(focusedValue));
+            console.log(`[GAC Autocomplete] Local Filter HIT for "${focusedValue}" (prefix: "${longestPrefixKey}")`);
+            return interaction.respond(formatAutocompleteChoices(filtered));
+        }
+
+        // 3. API Fetch
+        const startTime = Date.now();
         let url = `${API_GELBOORU_TAG_BASE_URL}&name_pattern=%${encodeURIComponent(focusedValue)}%&limit=25&orderby=count`;
         
         const apiKey = process.env.GELBOORU_API_KEY;
@@ -88,12 +135,13 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction) {
         const data = await response.json() as { tag: GelbooruTag[] } | any;
         const tags = Array.isArray(data.tag) ? data.tag : (data.tag ? [data.tag] : []);
 
-        const choices = tags.map((tag: GelbooruTag) => ({
-            name: `${tag.name} (${tag.count.toLocaleString()})`,
-            value: tag.name
-        }));
+        // Cache the results
+        autocompleteCache.set(focusedValue, { tags, timestamp: Date.now() });
+        
+        const duration = Date.now() - startTime;
+        console.log(`[GAC Autocomplete] API Fetch for "${focusedValue}" took ${duration}ms`);
 
-        await interaction.respond(choices);
+        await interaction.respond(formatAutocompleteChoices(tags));
     } catch (error) {
         console.error(`[Autocomplete Fetch Error]`, error);
         logError(error, { 
@@ -105,6 +153,16 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction) {
         });
         await interaction.respond([]);
     }
+}
+
+/**
+ * Formats Gelbooru tags into Discord autocomplete choices.
+ */
+function formatAutocompleteChoices(tags: GelbooruTag[]) {
+    return tags.slice(0, 25).map((tag: GelbooruTag) => ({
+        name: `${tag.name} (${tag.count.toLocaleString()})`,
+        value: tag.name
+    }));
 }
 
 export async function gac(interaction: ChatInputCommandInteraction) {
