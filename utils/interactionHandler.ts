@@ -6,6 +6,9 @@ import {
 	LOG_PREFIX_AUTOCOMPLETE_ERROR, 
 	LOG_PREFIX_FATAL_ERROR,
 	BUTTON_ID_RANDOM_IMAGE_RELOAD_PREFIX,
+	MODAL_ID_PLAY_QUEUE,
+	INPUT_ID_PLAY_QUEUE_URLS,
+	RESPONSE_QUEUE_UPDATED,
 	EMOJI_ERROR
 } from './constants/index.js';
 import { logError } from './database.js';
@@ -88,6 +91,21 @@ export async function handleInteraction(interaction: Interaction) {
                     guild_id: interaction.guildId || undefined,
                     channel_id: interaction.channelId
                 });
+			}
+		} else if (interaction.isModalSubmit()) {
+			if (interaction.customId === MODAL_ID_PLAY_QUEUE) {
+				const rawUrls = interaction.fields.getTextInputValue(INPUT_ID_PLAY_QUEUE_URLS);
+				const urls = rawUrls.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+				
+				const { updateQueue } = await import('../actions/play.js');
+				
+				try {
+					await updateQueue(interaction.guildId || "", urls, interaction);
+					await interaction.reply({ content: RESPONSE_QUEUE_UPDATED, ephemeral: true });
+				} catch (error: any) {
+					console.error(`[Modal Error] Failed to update queue:`, error);
+					await interaction.reply({ content: `${EMOJI_ERROR} Failed to update queue: ${error.message}`, ephemeral: true });
+				}
 			}
 		}
 	} catch (fatalError) {

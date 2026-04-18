@@ -16,6 +16,8 @@ export const BUTTON_ID_SKIP_BACK_30 = "back_30";
 export const BUTTON_ID_SKIP_FORWARD_30 = "forward_30";
 export const BUTTON_ID_CHAPTER_SELECT = "chapter_select";
 export const BUTTON_ID_RANDOM_IMAGE_RELOAD_PREFIX = "random_image_reload_";
+export const MODAL_ID_PLAY_QUEUE = "play_queue_modal";
+export const INPUT_ID_PLAY_QUEUE_URLS = "play_queue_urls";
 
 export const EMBED_TITLE_NOW_PLAYING = "Now Playing";
 export const EMBED_TITLE_SUPER_CRAWLER_INIT = "🚀 Super-Crawler Initialized";
@@ -31,3 +33,5 @@ export const RESPONSE_NOTHING_PLAYING = "❌ Nothing is currently playing.";
 export const RESPONSE_NO_URL = "❌ No URL provided!";
 export const RESPONSE_MUST_BE_IN_VOICE = "❌ You must be in a voice channel!";
 export const RESPONSE_FINISHED_PLAYING = "Finished playing.";
+export const RESPONSE_QUEUE_UPDATED = "✅ Queue updated!";
+export const RESPONSE_ADDED_TO_QUEUE = (title: string) => `✅ Added to queue: **${title}**`;

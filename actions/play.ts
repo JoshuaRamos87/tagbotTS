@@ -15,7 +15,7 @@ import ffmpegPath from 'ffmpeg-static';
 import { ChatInputCommandInteraction, Message, GuildMember, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 import { Readable } from 'node:stream';
 
-import { ERROR_GENERIC, LOG_PREFIX_CHAPTERS, LOG_PREFIX_AUDIOPLAYER_ERROR, LOG_PREFIX_PLAY_ERROR, EMOJI_ERROR, EMOJI_PLAY, EMOJI_PAUSE, EMOJI_STOP, EMOJI_SKIP_FORWARD, EMOJI_SKIP_BACKWARD, BUTTON_ID_PLAY_PAUSE, BUTTON_ID_STOP_PLAYBACK, BUTTON_ID_SKIP_BACK_30, BUTTON_ID_SKIP_FORWARD_30, BUTTON_ID_CHAPTER_SELECT, EMBED_TITLE_NOW_PLAYING, RESPONSE_DISCONNECTED, RESPONSE_NOT_IN_VOICE, RESPONSE_NOTHING_PLAYING, RESPONSE_NO_URL, RESPONSE_MUST_BE_IN_VOICE, RESPONSE_FINISHED_PLAYING } from '../utils/constants/index.js';
+import { ERROR_GENERIC, LOG_PREFIX_CHAPTERS, LOG_PREFIX_AUDIOPLAYER_ERROR, LOG_PREFIX_PLAY_ERROR, EMOJI_ERROR, EMOJI_PLAY, EMOJI_PAUSE, EMOJI_STOP, EMOJI_SKIP_FORWARD, EMOJI_SKIP_BACKWARD, BUTTON_ID_PLAY_PAUSE, BUTTON_ID_STOP_PLAYBACK, BUTTON_ID_SKIP_BACK_30, BUTTON_ID_SKIP_FORWARD_30, BUTTON_ID_CHAPTER_SELECT, EMBED_TITLE_NOW_PLAYING, RESPONSE_DISCONNECTED, RESPONSE_NOT_IN_VOICE, RESPONSE_NOTHING_PLAYING, RESPONSE_NO_URL, RESPONSE_MUST_BE_IN_VOICE, RESPONSE_FINISHED_PLAYING, RESPONSE_ADDED_TO_QUEUE } from '../utils/constants/index.js';
 import { sendResponse, getUserId } from '../utils/response.js';
 import { logError } from '../utils/database.js';
 
@@ -30,8 +30,45 @@ interface GuildState {
     player: AudioPlayer;
     message: Message | null;
     collector: any | null;
+    queue: string[];
 }
 const guildStates = new Map<string, GuildState>();
+
+/**
+ * Returns the current queue for a guild, joined by newlines.
+ */
+export function getQueue(guildId: string): string {
+    const state = guildStates.get(guildId);
+    if (!state || state.queue.length === 0) return "";
+    return state.queue.join('\n');
+}
+
+/**
+ * Updates the queue for a guild and starts playback if idle.
+ */
+export async function updateQueue(guildId: string, urls: string[], context: any) {
+    let state = guildStates.get(guildId);
+    if (!state) {
+        state = {
+            interval: null,
+            currentResource: null,
+            currentUrl: null,
+            startTimeSeconds: 0,
+            player: createAudioPlayer(),
+            message: null,
+            collector: null,
+            queue: urls
+        };
+        guildStates.set(guildId, state);
+    } else {
+        state.queue = urls;
+    }
+
+    // If nothing is playing and we have a new queue, start it
+    if (!state.currentUrl && state.queue.length > 0) {
+        await playYouTube(state.queue[0], context, 0, true);
+    }
+}
 
 async function getYouTube() {
     if (!yt) {
@@ -103,15 +140,49 @@ export async function seekTo(context: any, targetSeconds: number) {
     return playYouTube(state.currentUrl, context, targetSeconds);
 }
 
-export async function playYouTube(url: string, context: any, skipSeconds: number = 0) {
+export async function playYouTube(url: string, context: any, skipSeconds: number = 0, isInternal: boolean = false) {
     const input = url?.trim();
     if (!input || input === 'undefined') {
         return sendResponse(context, RESPONSE_NO_URL);
     }
 
-    // Extract ID and check for URL timestamp (e.g., ?t=125 or &t=1m20s)
-    const idMatch = input.match(/(?:v=|\/|watchv=|^)([a-zA-Z0-9_-]{11})(?:&|$|\?)/);
-    const videoId = idMatch ? idMatch[1] : input;
+    const member = context.member as GuildMember;
+    if (!member?.voice?.channel) {
+        return sendResponse(context, RESPONSE_MUST_BE_IN_VOICE);
+    }
+
+    const guildId = context.guild.id;
+    let state = guildStates.get(guildId);
+
+    // Queue Logic: If not triggered internally by the queue advancing, add to the list
+    if (!isInternal) {
+        if (!state) {
+            state = {
+                interval: null,
+                currentResource: null,
+                currentUrl: null,
+                startTimeSeconds: 0,
+                player: createAudioPlayer(),
+                message: null,
+                collector: null,
+                queue: [input]
+            };
+            guildStates.set(guildId, state);
+        } else {
+            state.queue.push(input);
+            // If already playing something, just notify and return
+            if (state.currentUrl) {
+                return sendResponse(context, RESPONSE_ADDED_TO_QUEUE("New Track"));
+            }
+        }
+    }
+
+    // Determine target URL (take first from queue if available)
+    const targetUrl = (state && state.queue.length > 0) ? state.queue[0] : input;
+
+    // Extract ID and check for URL timestamp
+    const idMatch = targetUrl.match(/(?:v=|\/|watchv=|^)([a-zA-Z0-9_-]{11})(?:&|$|\?)/);
+    const videoId = idMatch ? idMatch[1] : targetUrl;
     
     const tMatch = input.match(/[?&]t=([0-9hms]+)/);
     let urlTimestamp = 0;
@@ -133,12 +204,6 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
     const effectiveSkip = skipSeconds > 0 ? skipSeconds : urlTimestamp;
     
     const cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const member = context.member as GuildMember;
-    if (!member?.voice?.channel) {
-        return sendResponse(context, RESPONSE_MUST_BE_IN_VOICE);
-    }
-
-    const guildId = context.guild.id;
 
     try {
         const youtube = await getYouTube();
@@ -466,18 +531,29 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             startTimeSeconds: effectiveSkip,
             player: player,
             message: message,
-            collector: collector
+            collector: collector,
+            queue: state?.queue || [input]
         });
 
-        player.on(AudioPlayerStatus.Idle, () => {
+        player.on(AudioPlayerStatus.Idle, async () => {
             const state = guildStates.get(guildId);
-            if (state?.interval) {
-                clearInterval(state.interval);
-                guildStates.delete(guildId);
-            }
-            context.client.user?.setActivity(null);
-            if (message && message.editable) {
-                message.edit({ content: RESPONSE_FINISHED_PLAYING, embeds: [], components: [] }).catch(() => {});
+            if (state) {
+                if (state.interval) clearInterval(state.interval);
+                
+                // Remove the finished track from queue
+                state.queue.shift();
+
+                if (state.queue.length > 0) {
+                    // Play next item in queue
+                    await playYouTube(state.queue[0], context, 0, true);
+                } else {
+                    // No more items, cleanup
+                    guildStates.delete(guildId);
+                    context.client.user?.setActivity(null);
+                    if (message && message.editable) {
+                        message.edit({ content: RESPONSE_FINISHED_PLAYING, embeds: [], components: [] }).catch(() => {});
+                    }
+                }
             }
         });
 
