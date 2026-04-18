@@ -45,8 +45,9 @@ export function getQueue(guildId: string): string {
 
 /**
  * Updates the queue for a guild and starts playback if idle.
+ * @returns boolean - true if playback was started, false if just the queue was updated.
  */
-export async function updateQueue(guildId: string, urls: string[], context: any) {
+export async function updateQueue(guildId: string, urls: string[], context: any): Promise<boolean> {
     let state = guildStates.get(guildId);
     if (!state) {
         state = {
@@ -67,7 +68,9 @@ export async function updateQueue(guildId: string, urls: string[], context: any)
     // If nothing is playing and we have a new queue, start it
     if (!state.currentUrl && state.queue.length > 0) {
         await playYouTube(state.queue[0], context, 0, true);
+        return true;
     }
+    return false;
 }
 
 async function getYouTube() {
@@ -172,6 +175,8 @@ export async function playYouTube(url: string, context: any, skipSeconds: number
             state.queue.push(input);
             // If already playing something, just notify and return
             if (state.currentUrl) {
+                // If context is an interaction that has already been replied to, we might not want to send another message here
+                // but sendResponse handles it via followUp. However, for updateQueue we skip this.
                 return sendResponse(context, RESPONSE_ADDED_TO_QUEUE("New Track"));
             }
         }

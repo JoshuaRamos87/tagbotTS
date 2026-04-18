@@ -100,8 +100,12 @@ export async function handleInteraction(interaction: Interaction) {
 				const { updateQueue } = await import('../actions/play.js');
 				
 				try {
-					await updateQueue(interaction.guildId || "", urls, interaction);
-					await interaction.reply({ content: RESPONSE_QUEUE_UPDATED, ephemeral: true });
+					const playbackStarted = await updateQueue(interaction.guildId || "", urls, interaction);
+					
+					// Only reply if playback didn't start (if it started, playYouTube already sent the "Now Playing" embed)
+					if (!playbackStarted) {
+						await interaction.reply({ content: RESPONSE_QUEUE_UPDATED, ephemeral: true });
+					}
 				} catch (error: any) {
 					console.error(`[Modal Error] Failed to update queue:`, error);
 					await interaction.reply({ content: `${EMOJI_ERROR} Failed to update queue: ${error.message}`, ephemeral: true });
