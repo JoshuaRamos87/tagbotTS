@@ -16,6 +16,8 @@ export const BUTTON_ID_SKIP_BACK_30 = "back_30";
 export const BUTTON_ID_SKIP_FORWARD_30 = "forward_30";
 export const BUTTON_ID_CHAPTER_SELECT = "chapter_select";
 export const BUTTON_ID_RANDOM_IMAGE_RELOAD_PREFIX = "random_image_reload_";
+export const BUTTON_ID_ADD_TRACKS = "add_tracks_to_queue";
+export const SELECT_ID_REMOVE_TRACK = "remove_track_from_queue";
 export const MODAL_ID_PLAY_QUEUE = "play_queue_modal";
 export const INPUT_ID_PLAY_QUEUE_URLS = "play_queue_urls";
 

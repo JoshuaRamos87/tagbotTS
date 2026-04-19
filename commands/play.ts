@@ -6,7 +6,7 @@ import {
     TextInputStyle, 
     ActionRowBuilder 
 } from 'discord.js';
-import { playYouTube, getQueue } from '../actions/play/index.js';
+import { playYouTube, buildQueueDashboard } from '../actions/play/index.js';
 import { MODAL_ID_PLAY_QUEUE, INPUT_ID_PLAY_QUEUE_URLS } from '../utils/constants/index.js';
 
 export const data = new SlashCommandBuilder()
@@ -26,25 +26,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const skip = interaction.options.getInteger('skip') || 0;
 
     if (!url) {
-        // No URL provided, show the Queue Manager Modal
-        const currentQueue = getQueue(interaction.guildId || "");
-
-        const modal = new ModalBuilder()
-            .setCustomId(MODAL_ID_PLAY_QUEUE)
-            .setTitle('Queue Manager');
-
-        const queueInput = new TextInputBuilder()
-            .setCustomId(INPUT_ID_PLAY_QUEUE_URLS)
-            .setLabel("YouTube URLs (one per line)")
-            .setStyle(TextInputStyle.Paragraph)
-            .setPlaceholder('Paste YouTube links here to add them to the queue...')
-            .setValue(currentQueue)
-            .setRequired(false);
-
-        const firstActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(queueInput);
-        modal.addComponents(firstActionRow);
-
-        await interaction.showModal(modal);
+        // No URL provided, show the Queue Dashboard
+        await interaction.deferReply();
+        const dashboard = await buildQueueDashboard(interaction.guildId || "");
+        await interaction.editReply(dashboard);
         return;
     }
 
