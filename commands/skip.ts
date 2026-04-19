@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { skipForward } from '../actions/play.js';
+import { skipForward } from '../actions/play/index.js';
 
 export const data = new SlashCommandBuilder()
     .setName('skip')

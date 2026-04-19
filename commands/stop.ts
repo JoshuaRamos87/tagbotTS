@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { stopPlayback } from '../actions/play.js';
+import { stopPlayback } from '../actions/play/index.js';
 
 export const data = new SlashCommandBuilder()
     .setName('stop')

@@ -97,7 +97,7 @@ export async function handleInteraction(interaction: Interaction) {
 				const rawUrls = interaction.fields.getTextInputValue(INPUT_ID_PLAY_QUEUE_URLS);
 				const urls = rawUrls.split('\n').map(u => u.trim()).filter(u => u.length > 0);
 				
-				const { updateQueue, getTitles } = await import('../actions/play.js');
+				const { updateQueue, getTitles } = await import('../actions/play/index.js');
 				
 				try {
 					// We must acknowledge the modal submit immediately or defer it.

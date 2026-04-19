@@ -6,7 +6,7 @@ import {
     TextInputStyle, 
     ActionRowBuilder 
 } from 'discord.js';
-import { playYouTube, getQueue } from '../actions/play.js';
+import { playYouTube, getQueue } from '../actions/play/index.js';
 import { MODAL_ID_PLAY_QUEUE, INPUT_ID_PLAY_QUEUE_URLS } from '../utils/constants/index.js';
 
 export const data = new SlashCommandBuilder()
