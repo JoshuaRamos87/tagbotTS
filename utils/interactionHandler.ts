@@ -15,7 +15,9 @@ import {
 	BUTTON_ID_RANDOM_IMAGE_RELOAD_PREFIX,
 	BUTTON_ID_ADD_TRACKS,
 	SELECT_ID_REMOVE_TRACK,
+	SELECT_ID_CLEAR_TIME,
 	MODAL_ID_PLAY_QUEUE,
+	MODAL_ID_CLEAR_CONFIRM,
 	INPUT_ID_PLAY_QUEUE_URLS,
 	RESPONSE_QUEUE_UPDATED,
 	EMOJI_ERROR
@@ -109,6 +111,9 @@ export async function handleInteraction(interaction: Interaction) {
 					console.error(`[Select Error] Failed to remove track:`, error);
 					await interaction.reply({ content: `${EMOJI_ERROR} Failed to remove track.`, ephemeral: true });
 				}
+			} else if (interaction.customId === SELECT_ID_CLEAR_TIME) {
+				const { handleClearSelect } = await import('../actions/clear.js');
+				await handleClearSelect(interaction);
 			}
 		} else if (interaction.isAutocomplete()) {
 			const command = interaction.client.commands.get(interaction.commandName);
@@ -177,6 +182,9 @@ export async function handleInteraction(interaction: Interaction) {
 						await interaction.reply({ content: errorContent, ephemeral: true });
 					}
 				}
+			} else if (interaction.customId === MODAL_ID_CLEAR_CONFIRM) {
+				const { handleClearModal } = await import('../actions/clear.js');
+				await handleClearModal(interaction);
 			}
 		}
 	} catch (fatalError) {
